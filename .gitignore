@@ -1,0 +1,9 @@
+.coverage
+.venv/
+__pycache__/
+*.egg-info/
+*.pyc
+build/
+dist/
+.sisyphus-harness/
+.sisyphus-harness.local.toml
