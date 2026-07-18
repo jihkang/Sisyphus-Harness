@@ -1,0 +1,207 @@
+{
+  "evaluation": {
+    "all_hard_gates_passed": true,
+    "count": 2,
+    "mean_score": 0.9523026315789473,
+    "observations": [
+      {
+        "diagnostics": {
+          "case_id": "python-retry-delay",
+          "criterion_pass_rate": 1.0,
+          "instruction": "Fix retry_delay(attempt, base_delay) to return the integer exponential delay base_delay * 2 ** (attempt - 1), capped at 60. Accept only non-boolean integers. Raise ValueError when attempt is outside 1 through 8, base_delay is outside 1 through 30, or either input has an unsupported type.",
+          "result": {
+            "artifact_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-retry-delay-8073fc78157f-4158e0710e/agent/agent",
+            "changed_paths": [
+              "backoff.py"
+            ],
+            "compactions": 6,
+            "reason": "final verification passed",
+            "run_id": "agent",
+            "schema_version": "sisyphus_harness.agent_run.v1",
+            "steps": 10,
+            "success": true,
+            "summary": "The retry_delay function was fixed to correctly handle type checking by distinguishing booleans from integers using type() instead of isinstance(). The function now properly raises ValueError for booleans and non-integer inputs, caps exponential delays at 60, and validates attempt/base_delay ranges. All acceptance criteria are verified through benchmark tests.",
+            "verifications": 4,
+            "workspace_state_after": "sha256:d6df800c1acdb099fa360ebb3650fbcf6eb8fd0b3592a26c96422d93e8a3078a",
+            "workspace_state_before": "sha256:9b25828d8fc330a5c5be29bac4d3540f05ff0fe9386390bed78c7d57ccb715ae"
+          },
+          "rollout_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-retry-delay-8073fc78157f-4158e0710e",
+          "trace_summary": {
+            "actions": [
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": false,
+                "step": 1,
+                "tool": "list_files"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": false,
+                "path": "backoff.py",
+                "step": 2,
+                "tool": "read_file"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "backoff.py",
+                "step": 3,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "finish",
+                "event_kind": "verification",
+                "failed_criteria": [
+                  "retry_delay raises ValueError for booleans and non-integer inputs"
+                ],
+                "mutated": false,
+                "step": 4,
+                "verification_passed": false
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "backoff.py",
+                "step": 5,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "backoff.py",
+                "step": 6,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "backoff.py",
+                "step": 7,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "backoff.py",
+                "step": 8,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "backoff.py",
+                "step": 9,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "finish",
+                "event_kind": "verification",
+                "failed_criteria": [],
+                "mutated": false,
+                "step": 10,
+                "verification_passed": true
+              }
+            ],
+            "total_steps": 10,
+            "truncated": false
+          }
+        },
+        "example_id": "python-retry-delay",
+        "hard_gate_passed": true,
+        "score": 0.9151315789473684,
+        "scores": {
+          "compaction_efficiency": 0.25,
+          "correctness": 1.0,
+          "step_efficiency": 0.5263157894736843
+        },
+        "success": true
+      },
+      {
+        "diagnostics": {
+          "case_id": "python-cache-key",
+          "criterion_pass_rate": 1.0,
+          "instruction": "Fix normalize_cache_key(value) to accept only strings and return lowercase ASCII alphanumeric segments separated by one hyphen. Treat runs of whitespace, underscores, or hyphens as separators, remove every other character including non-ASCII text, collapse separators, strip edge separators, and raise ValueError for non-string input.",
+          "result": {
+            "artifact_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-cache-key-8073fc78157f-f27e56c492/agent/agent",
+            "changed_paths": [
+              "cache_keys.py"
+            ],
+            "compactions": 0,
+            "reason": "final verification passed",
+            "run_id": "agent",
+            "schema_version": "sisyphus_harness.agent_run.v1",
+            "steps": 3,
+            "success": true,
+            "summary": "The normalize_cache_key function now fully complies with all acceptance criteria. The implementation correctly: 1) Lowercases ASCII letters and preserves digits via value.lower() 2) Collapses whitespace/underscore/hyphen separators using regex 3) Removes punctuation/non-ASCII characters with regex substitution 4) Strips edge separators and handles empty output via .strip('-') 5) Raises ValueError for non-string inputs. All criteria have working verification paths through the harness.",
+            "verifications": 1,
+            "workspace_state_after": "sha256:be7f42007034f227e87e3696560c9af4922d6663bc466fddfa4975058a12436a",
+            "workspace_state_before": "sha256:ae5c52a9bc2633fe4062256d77382aaeadd678913894e9b501de416c73365e93"
+          },
+          "rollout_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-cache-key-8073fc78157f-f27e56c492",
+          "trace_summary": {
+            "actions": [
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": false,
+                "path": "cache_keys.py",
+                "step": 1,
+                "tool": "read_file"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "cache_keys.py",
+                "step": 2,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "finish",
+                "event_kind": "verification",
+                "failed_criteria": [],
+                "mutated": false,
+                "step": 3,
+                "verification_passed": true
+              }
+            ],
+            "total_steps": 3,
+            "truncated": false
+          }
+        },
+        "example_id": "python-cache-key",
+        "hard_gate_passed": true,
+        "score": 0.9894736842105263,
+        "scores": {
+          "compaction_efficiency": 1.0,
+          "correctness": 1.0,
+          "step_efficiency": 0.8947368421052632
+        },
+        "success": true
+      }
+    ],
+    "success_rate": 1.0
+  },
+  "policy": {
+    "cadence": {
+      "compaction_interval_steps": 2,
+      "context_char_limit": 6000,
+      "keep_recent_events": 1,
+      "observation_interval_steps": 2,
+      "reflection_interval_steps": 3,
+      "stagnation_limit": 4,
+      "verification_interval_mutations": 2
+    },
+    "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+    "schema_version": "sisyphus_harness.policy_candidate.v1",
+    "strategy_prompt": "Treat the operator task and acceptance criteria as the approved specification. Distinguish stated requirements from inferences, inspect the relevant source before editing, avoid invented behavior, make the smallest coherent change, and finish only when every criterion has a concrete verification path. Prioritize exact text matching for replacements, use explicit search patterns, and verify changes against all acceptance clauses before finalizing."
+  }
+}

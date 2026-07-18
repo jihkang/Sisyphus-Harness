@@ -1,0 +1,35 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_case.v1",
+  "id": "python-completion-percent",
+  "instruction": "Fix completion_percent(completed, total) to return a float percentage from 0.0 through 100.0. Accept finite integer or float inputs but reject booleans and all other types. Raise ValueError when completed is negative, total is not positive, completed exceeds total, or either input is non-finite.",
+  "acceptance_criteria": [
+    "completion_percent returns correct float percentages",
+    "completion_percent handles zero, full, and fractional boundaries",
+    "completion_percent raises ValueError for booleans, unsupported types, or non-finite values",
+    "completion_percent raises ValueError for invalid numeric ranges"
+  ],
+  "workspace": "workspace",
+  "verifiers": [
+    {
+      "name": "percentages",
+      "criterion": "completion_percent returns correct float percentages",
+      "script": "verify_percentages.py"
+    },
+    {
+      "name": "boundaries",
+      "criterion": "completion_percent handles zero, full, and fractional boundaries",
+      "script": "verify_boundaries.py"
+    },
+    {
+      "name": "invalid-types",
+      "criterion": "completion_percent raises ValueError for booleans, unsupported types, or non-finite values",
+      "script": "verify_types.py"
+    },
+    {
+      "name": "invalid-ranges",
+      "criterion": "completion_percent raises ValueError for invalid numeric ranges",
+      "script": "verify_ranges.py"
+    }
+  ],
+  "timeout_seconds": 20
+}

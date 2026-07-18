@@ -1,0 +1,11 @@
+{
+  "schema_version": "sisyphus_harness.policy_approval_export.v1",
+  "evolution_id": "qwen30b-gepa-20260718-11",
+  "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+  "note": "Operator-authorized review: train and frozen holdout-v3 deltas are measurable, all holdout cases pass, and all hard gates pass.",
+  "approved_at": "2026-07-17T19:16:25.734755Z",
+  "operator_redacted": true,
+  "source_signature": "hmac-sha256:f2a18db88b17a598b13619e8b4eb306a32b8fd59131183bbb118ddce3db142f4",
+  "source_sha256": "82092adc70ba071b1ab733e4be84f615a96929dc8a8e35c4a25e41f4fc4296aa",
+  "signature_verified_before_export": true
+}

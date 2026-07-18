@@ -1,0 +1,11 @@
+diff --git a/arithmetic.py b/arithmetic.py
+index adbb2cf..5663f0f 100644
+--- a/arithmetic.py
++++ b/arithmetic.py
+@@ -1,5 +1,5 @@
+ def add(left, right):
+-    return left - right
++    return left + right
+ 
+ 
+ # stable fixture context 001

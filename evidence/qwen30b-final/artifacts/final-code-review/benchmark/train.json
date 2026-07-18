@@ -1,0 +1,101 @@
+{
+  "schema_version": "sisyphus_harness.final_code_benchmark.v1",
+  "split": "train",
+  "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+  "historical_baseline": {
+    "mean_score": 0.6864967105263158,
+    "success_rate": 0.5
+  },
+  "final_code_evaluation": {
+    "count": 4,
+    "mean_score": 0.8973190789473684,
+    "success_rate": 0.75,
+    "all_hard_gates_passed": true,
+    "observations": [
+      {
+        "example_id": "python-add",
+        "score": 0.9894736842105263,
+        "success": true,
+        "hard_gate_passed": true,
+        "scores": {
+          "compaction_efficiency": 1.0,
+          "correctness": 1.0,
+          "step_efficiency": 0.8947368421052632
+        },
+        "result": {
+          "steps": 3,
+          "compactions": 0,
+          "verifications": 1,
+          "reason": "final verification passed",
+          "changed_paths": [
+            "math_utils.py"
+          ]
+        }
+      },
+      {
+        "example_id": "python-clamp",
+        "score": 0.9894736842105263,
+        "success": true,
+        "hard_gate_passed": true,
+        "scores": {
+          "compaction_efficiency": 1.0,
+          "correctness": 1.0,
+          "step_efficiency": 0.8947368421052632
+        },
+        "result": {
+          "steps": 3,
+          "compactions": 0,
+          "verifications": 1,
+          "reason": "final verification passed",
+          "changed_paths": [
+            "bounds.py"
+          ]
+        }
+      },
+      {
+        "example_id": "python-page-size",
+        "score": 0.6208552631578947,
+        "success": false,
+        "hard_gate_passed": true,
+        "scores": {
+          "compaction_efficiency": 0.375,
+          "correctness": 0.8,
+          "step_efficiency": 0.42105263157894735
+        },
+        "result": {
+          "steps": 12,
+          "compactions": 5,
+          "verifications": 1,
+          "reason": "stagnation threshold reached",
+          "changed_paths": [
+            "pagination.py"
+          ]
+        }
+      },
+      {
+        "example_id": "python-label",
+        "score": 0.9894736842105263,
+        "success": true,
+        "hard_gate_passed": true,
+        "scores": {
+          "compaction_efficiency": 1.0,
+          "correctness": 1.0,
+          "step_efficiency": 0.8947368421052632
+        },
+        "result": {
+          "steps": 3,
+          "compactions": 0,
+          "verifications": 1,
+          "reason": "final verification passed",
+          "changed_paths": [
+            "labels.py"
+          ]
+        }
+      }
+    ]
+  },
+  "improvement": {
+    "mean_score_delta": 0.21082236842105262,
+    "success_rate_delta": 0.25
+  }
+}

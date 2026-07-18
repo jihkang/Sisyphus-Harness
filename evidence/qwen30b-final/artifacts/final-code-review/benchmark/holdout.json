@@ -1,0 +1,61 @@
+{
+  "schema_version": "sisyphus_harness.final_code_benchmark.v1",
+  "split": "holdout-v3",
+  "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+  "historical_baseline": {
+    "mean_score": 0.7183881578947369,
+    "success_rate": 0.5
+  },
+  "final_code_evaluation": {
+    "count": 2,
+    "mean_score": 0.9391447368421052,
+    "success_rate": 1.0,
+    "all_hard_gates_passed": true,
+    "observations": [
+      {
+        "example_id": "python-retry-delay",
+        "score": 0.8888157894736841,
+        "success": true,
+        "hard_gate_passed": true,
+        "scores": {
+          "compaction_efficiency": 0.25,
+          "correctness": 1.0,
+          "step_efficiency": 0.26315789473684215
+        },
+        "result": {
+          "steps": 15,
+          "compactions": 6,
+          "verifications": 7,
+          "reason": "final verification passed",
+          "changed_paths": [
+            "backoff.py"
+          ]
+        }
+      },
+      {
+        "example_id": "python-cache-key",
+        "score": 0.9894736842105263,
+        "success": true,
+        "hard_gate_passed": true,
+        "scores": {
+          "compaction_efficiency": 1.0,
+          "correctness": 1.0,
+          "step_efficiency": 0.8947368421052632
+        },
+        "result": {
+          "steps": 3,
+          "compactions": 0,
+          "verifications": 1,
+          "reason": "final verification passed",
+          "changed_paths": [
+            "cache_keys.py"
+          ]
+        }
+      }
+    ]
+  },
+  "improvement": {
+    "mean_score_delta": 0.22075657894736833,
+    "success_rate_delta": 0.5
+  }
+}

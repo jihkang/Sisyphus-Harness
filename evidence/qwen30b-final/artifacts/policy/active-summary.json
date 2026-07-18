@@ -1,0 +1,10 @@
+{
+  "schema_version": "sisyphus_harness.active_policy_export.v1",
+  "evolution_id": "qwen30b-gepa-20260718-11",
+  "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+  "activated_at": "2026-07-17T19:16:29.854611Z",
+  "source_signature": "hmac-sha256:fb26d49c2b1a9b6c625ec25256100b17a088b882891b0055d38824cc29ecab6a",
+  "source_sha256": "da10cdf63ac330f22d435443c966f48ad4d5e876de7f18fd2d0b85903eb2928e",
+  "signature_verified_before_export": true,
+  "authority_key_exported": false
+}

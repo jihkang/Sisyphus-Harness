@@ -1,0 +1,25 @@
+{
+  "schema_version": "sisyphus_harness.queue_idempotency_evidence.v1",
+  "idempotency_key": "qwen30b-final-source-queue-v1",
+  "submissions": [
+    {
+      "job_id": "job-b9dec182977c4406bc69796f7c20f1b9",
+      "idempotency_key": "qwen30b-final-source-queue-v1",
+      "status": "queued",
+      "attempts": 0
+    },
+    {
+      "job_id": "job-b9dec182977c4406bc69796f7c20f1b9",
+      "idempotency_key": "qwen30b-final-source-queue-v1",
+      "status": "queued",
+      "attempts": 0
+    },
+    {
+      "job_id": "job-b9dec182977c4406bc69796f7c20f1b9",
+      "idempotency_key": "qwen30b-final-source-queue-v1",
+      "status": "completed",
+      "attempts": 1
+    }
+  ],
+  "all_job_ids_identical": true
+}

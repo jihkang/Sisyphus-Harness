@@ -1,0 +1,23 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_case.v1",
+  "id": "python-port",
+  "instruction": "Fix parse_port(value) to accept an integer or a decimal string for ports 1 through 65535. Reject booleans, whitespace-padded strings, non-decimal strings, zero, and out-of-range values with ValueError.",
+  "acceptance_criteria": [
+    "parse_port accepts valid integer and decimal string ports",
+    "parse_port raises ValueError for invalid types, formatting, and ranges"
+  ],
+  "workspace": "workspace",
+  "verifiers": [
+    {
+      "name": "valid-ports",
+      "criterion": "parse_port accepts valid integer and decimal string ports",
+      "script": "verify_valid.py"
+    },
+    {
+      "name": "invalid-ports",
+      "criterion": "parse_port raises ValueError for invalid types, formatting, and ranges",
+      "script": "verify_invalid.py"
+    }
+  ],
+  "timeout_seconds": 20
+}

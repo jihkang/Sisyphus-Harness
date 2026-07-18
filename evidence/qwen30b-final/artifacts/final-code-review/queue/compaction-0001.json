@@ -1,0 +1,41 @@
+{
+  "retained_events": [
+    {
+      "arguments": {
+        "expected_sha256": "sha256:838fbf0e8b4b28e8f1a6c7bf75cfe3b073f3e4d38cab02b32e255e341cfd801e",
+        "new_lines": [
+          "    return left + right"
+        ],
+        "old_lines": [
+          "    return left - right"
+        ],
+        "path": "arithmetic.py"
+      },
+      "kind": "tool",
+      "mutated": true,
+      "output": {
+        "bytes": 9328,
+        "input_mode": "lines",
+        "path": "arithmetic.py",
+        "sha256": "sha256:c70095ecb5c13c8f9a66078cd23895343af2c395c9e4f15ba79f2a2a71802475"
+      },
+      "reason": "Fix add function to return arithmetic sum by changing subtraction to addition",
+      "step": 2,
+      "tool": "replace_text"
+    }
+  ],
+  "schema_version": "sisyphus_harness.compaction.v1",
+  "step": 3,
+  "summary": {
+    "compacted_event_count": 1,
+    "files_mutated": [],
+    "files_read": [
+      "arithmetic.py"
+    ],
+    "latest_verification": null,
+    "recent_errors": [],
+    "tool_counts": {
+      "read_file": 1
+    }
+  }
+}

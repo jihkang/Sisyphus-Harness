@@ -1,0 +1,9 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_dataset.v1",
+  "cases": [
+    "cases/python-add",
+    "cases/python-clamp",
+    "cases/python-page-size",
+    "cases/python-label"
+  ]
+}

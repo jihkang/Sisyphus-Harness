@@ -1,0 +1,40 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sisyphus-harness"
+version = "0.1.0"
+description = "Bounded local coding-agent runtime with offline cadence evolution"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+evolution = [
+    "cloudpickle>=3.0,<4",
+    "gepa>=0.1.4,<0.2",
+]
+
+[dependency-groups]
+dev = ["coverage==7.15.0"]
+
+[project.scripts]
+sisyphus-harness = "sisyphus_harness.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.coverage.run]
+branch = true
+source = ["sisyphus_harness"]
+
+[tool.coverage.report]
+fail_under = 90
+precision = 1
+show_missing = true

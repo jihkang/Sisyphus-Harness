@@ -1,0 +1,415 @@
+{
+  "evaluation": {
+    "all_hard_gates_passed": true,
+    "count": 4,
+    "mean_score": 0.9171052631578948,
+    "observations": [
+      {
+        "diagnostics": {
+          "case_id": "python-add",
+          "criterion_pass_rate": 1.0,
+          "instruction": "Fix math_utils.add so it returns the arithmetic sum of its two arguments.",
+          "result": {
+            "artifact_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-add-8073fc78157f-3d47981713/agent/agent",
+            "changed_paths": [
+              "math_utils.py"
+            ],
+            "compactions": 0,
+            "reason": "final verification passed",
+            "run_id": "agent",
+            "schema_version": "sisyphus_harness.agent_run.v1",
+            "steps": 3,
+            "success": true,
+            "summary": "The math_utils.add function was corrected to return the sum of its arguments by replacing 'return left - right' with 'return left + right'. The code now correctly handles positive, negative, and zero values as required by the acceptance criterion.",
+            "verifications": 1,
+            "workspace_state_after": "sha256:f7bcaa862f6e48cfab187033ba8af34eae473b0a6c4d70404ebec4ac74942082",
+            "workspace_state_before": "sha256:bf044223136e1a9f27f97b7f738e601b6c48c4f39ccd81dbf7a00ca604d9093a"
+          },
+          "rollout_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-add-8073fc78157f-3d47981713",
+          "trace_summary": {
+            "actions": [
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": false,
+                "path": "math_utils.py",
+                "step": 1,
+                "tool": "read_file"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "math_utils.py",
+                "step": 2,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "finish",
+                "event_kind": "verification",
+                "failed_criteria": [],
+                "mutated": false,
+                "step": 3,
+                "verification_passed": true
+              }
+            ],
+            "total_steps": 3,
+            "truncated": false
+          }
+        },
+        "example_id": "python-add",
+        "hard_gate_passed": true,
+        "score": 0.9894736842105263,
+        "scores": {
+          "compaction_efficiency": 1.0,
+          "correctness": 1.0,
+          "step_efficiency": 0.8947368421052632
+        },
+        "success": true
+      },
+      {
+        "diagnostics": {
+          "case_id": "python-clamp",
+          "criterion_pass_rate": 1.0,
+          "instruction": "Fix clamp(value, lower, upper) so values below lower return lower, values above upper return upper, and in-range values are unchanged. Raise ValueError when lower is greater than upper.",
+          "result": {
+            "artifact_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-clamp-8073fc78157f-3827b32a08/agent/agent",
+            "changed_paths": [
+              "bounds.py"
+            ],
+            "compactions": 0,
+            "reason": "final verification passed",
+            "run_id": "agent",
+            "schema_version": "sisyphus_harness.agent_run.v1",
+            "steps": 3,
+            "success": true,
+            "summary": "The clamp function was updated to correctly enforce both bounds by returning max(lower, min(upper, value)) and raises ValueError when lower > upper. The implementation now satisfies both acceptance criteria: clamp enforces bounds and rejects inverted ranges.",
+            "verifications": 1,
+            "workspace_state_after": "sha256:9c570c33a88171bf922649b4ec6bbd801b3cf19fdae0946f167f166d8705d0f0",
+            "workspace_state_before": "sha256:7942fc8b4cc2d76c6472ab68c8006a5477da367a3faa08e61ee40f7a637c5b76"
+          },
+          "rollout_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-clamp-8073fc78157f-3827b32a08",
+          "trace_summary": {
+            "actions": [
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": false,
+                "path": "bounds.py",
+                "step": 1,
+                "tool": "read_file"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "bounds.py",
+                "step": 2,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "finish",
+                "event_kind": "verification",
+                "failed_criteria": [],
+                "mutated": false,
+                "step": 3,
+                "verification_passed": true
+              }
+            ],
+            "total_steps": 3,
+            "truncated": false
+          }
+        },
+        "example_id": "python-clamp",
+        "hard_gate_passed": true,
+        "score": 0.9894736842105263,
+        "scores": {
+          "compaction_efficiency": 1.0,
+          "correctness": 1.0,
+          "step_efficiency": 0.8947368421052632
+        },
+        "success": true
+      },
+      {
+        "diagnostics": {
+          "case_id": "python-page-size",
+          "criterion_pass_rate": 1.0,
+          "instruction": "Fix parse_page_size(value) to accept an integer or an ASCII base-10 digit string from 1 through 500. Reject booleans, unsupported types, padded or signed strings, non-ASCII or non-digit strings, and out-of-range values with ValueError.",
+          "result": {
+            "artifact_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-page-size-8073fc78157f-27b35b6383/agent/agent",
+            "changed_paths": [
+              "pagination.py"
+            ],
+            "compactions": 8,
+            "reason": "step budget exhausted",
+            "run_id": "agent",
+            "schema_version": "sisyphus_harness.agent_run.v1",
+            "steps": 20,
+            "success": false,
+            "summary": "The parse_page_size function now correctly handles integers and ASCII digit strings within the 1-500 range. It raises ValueError for booleans (due to isinstance checking int first), unsupported types, and invalid strings. All acceptance criteria have verification paths. Next step: request verification.",
+            "verifications": 7,
+            "workspace_state_after": "sha256:862c82422cd76091752e656ef94ec66ebf4c6c640654b9fdbdcf1e0047eafa0e",
+            "workspace_state_before": "sha256:5e00519e79e325165d90f5646810c0b01c1da669e65fc180f57608ee5954f783"
+          },
+          "rollout_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-page-size-8073fc78157f-27b35b6383",
+          "trace_summary": {
+            "actions": [
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": false,
+                "path": "pagination.py",
+                "step": 1,
+                "tool": "read_file"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 2,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "finish",
+                "event_kind": "verification",
+                "failed_criteria": [
+                  "parse_page_size raises ValueError for booleans and unsupported types",
+                  "parse_page_size raises ValueError for padded, signed, non-ASCII, or non-digit strings"
+                ],
+                "mutated": false,
+                "step": 3,
+                "verification_passed": false
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 4,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "error": "replace_text replacement would not change file",
+                "event_kind": "tool_error",
+                "mutated": false,
+                "step": 5,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "error": "replace_text replacement would not change file",
+                "event_kind": "tool_error",
+                "mutated": false,
+                "step": 6,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "error": "replace_text replacement would not change file",
+                "event_kind": "tool_error",
+                "mutated": false,
+                "step": 7,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 8,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 9,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 10,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 11,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 12,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 13,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "error": "replace_text replacement would not change file",
+                "event_kind": "tool_error",
+                "mutated": false,
+                "step": 14,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 15,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 16,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 17,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 18,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 19,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "pagination.py",
+                "step": 20,
+                "tool": "replace_text"
+              }
+            ],
+            "total_steps": 20,
+            "truncated": false
+          }
+        },
+        "example_id": "python-page-size",
+        "hard_gate_passed": true,
+        "score": 0.7,
+        "scores": {
+          "compaction_efficiency": 0.0,
+          "correctness": 1.0,
+          "step_efficiency": 0.0
+        },
+        "success": false
+      },
+      {
+        "diagnostics": {
+          "case_id": "python-label",
+          "criterion_pass_rate": 1.0,
+          "instruction": "Fix normalize_label(value) to return lowercase ASCII alphanumeric words separated by one underscore. Treat runs of whitespace, underscores, or hyphens as separators, remove other punctuation, collapse separators, and strip separators from both ends.",
+          "result": {
+            "artifact_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-label-8073fc78157f-c77f460598/agent/agent",
+            "changed_paths": [
+              "labels.py"
+            ],
+            "compactions": 0,
+            "reason": "final verification passed",
+            "run_id": "agent",
+            "schema_version": "sisyphus_harness.agent_run.v1",
+            "steps": 3,
+            "success": true,
+            "summary": "The normalize_label function was updated to meet all acceptance criteria: it lowercases ASCII letters, collapses whitespace/underscore/hyphen runs into single underscores, removes non-separator punctuation, and strips edge separators. The implementation uses regex substitutions to handle all required transformations in sequence, ensuring exact matching of the specified behavior.",
+            "verifications": 1,
+            "workspace_state_after": "sha256:4ef06403c7a9a4b5097f923274957700ef526b7b6af8654c7a39cc469d8e9b54",
+            "workspace_state_before": "sha256:81ae3dd686cb083f708638337b1c6f6da9bed11167fe115cdcb5832959c9849f"
+          },
+          "rollout_path": "$REPO/.git/sisyphus-harness/artifacts/evolution/benchmark-rollouts/python-label-8073fc78157f-c77f460598",
+          "trace_summary": {
+            "actions": [
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": false,
+                "path": "labels.py",
+                "step": 1,
+                "tool": "read_file"
+              },
+              {
+                "decision_type": "tool",
+                "event_kind": "tool",
+                "mutated": true,
+                "path": "labels.py",
+                "step": 2,
+                "tool": "replace_text"
+              },
+              {
+                "decision_type": "finish",
+                "event_kind": "verification",
+                "failed_criteria": [],
+                "mutated": false,
+                "step": 3,
+                "verification_passed": true
+              }
+            ],
+            "total_steps": 3,
+            "truncated": false
+          }
+        },
+        "example_id": "python-label",
+        "hard_gate_passed": true,
+        "score": 0.9894736842105263,
+        "scores": {
+          "compaction_efficiency": 1.0,
+          "correctness": 1.0,
+          "step_efficiency": 0.8947368421052632
+        },
+        "success": true
+      }
+    ],
+    "success_rate": 0.75
+  },
+  "policy": {
+    "cadence": {
+      "compaction_interval_steps": 2,
+      "context_char_limit": 6000,
+      "keep_recent_events": 1,
+      "observation_interval_steps": 2,
+      "reflection_interval_steps": 3,
+      "stagnation_limit": 4,
+      "verification_interval_mutations": 2
+    },
+    "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+    "schema_version": "sisyphus_harness.policy_candidate.v1",
+    "strategy_prompt": "Treat the operator task and acceptance criteria as the approved specification. Distinguish stated requirements from inferences, inspect the relevant source before editing, avoid invented behavior, make the smallest coherent change, and finish only when every criterion has a concrete verification path. Prioritize exact text matching for replacements, use explicit search patterns, and verify changes against all acceptance clauses before finalizing."
+  }
+}

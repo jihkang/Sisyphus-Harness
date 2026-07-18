@@ -1,0 +1,23 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_case.v1",
+  "id": "python-clamp",
+  "instruction": "Fix clamp(value, lower, upper) so values below lower return lower, values above upper return upper, and in-range values are unchanged. Raise ValueError when lower is greater than upper.",
+  "acceptance_criteria": [
+    "clamp enforces both bounds",
+    "clamp rejects an inverted range"
+  ],
+  "workspace": "workspace",
+  "verifiers": [
+    {
+      "name": "bounds",
+      "criterion": "clamp enforces both bounds",
+      "script": "verify_bounds.py"
+    },
+    {
+      "name": "inverted-range",
+      "criterion": "clamp rejects an inverted range",
+      "script": "verify_inverted.py"
+    }
+  ],
+  "timeout_seconds": 20
+}

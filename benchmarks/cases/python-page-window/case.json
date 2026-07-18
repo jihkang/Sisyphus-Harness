@@ -1,0 +1,35 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_case.v1",
+  "id": "python-page-window",
+  "instruction": "Fix take_page(items, offset, limit) to return a new list containing at most limit items beginning at the zero-based offset. Accept list or tuple input. Reject booleans and non-integer offset or limit values, reject negative offsets and non-positive limits, and raise ValueError for unsupported item collections. Do not mutate the input; an offset at or beyond its length returns an empty list.",
+  "acceptance_criteria": [
+    "take_page returns the correct bounded window as a new list",
+    "take_page handles tuple, empty, and offset-past-end inputs",
+    "take_page raises ValueError for unsupported collections or non-integer indexes",
+    "take_page raises ValueError for negative offsets or non-positive limits"
+  ],
+  "workspace": "workspace",
+  "verifiers": [
+    {
+      "name": "bounded-window",
+      "criterion": "take_page returns the correct bounded window as a new list",
+      "script": "verify_window.py"
+    },
+    {
+      "name": "edge-inputs",
+      "criterion": "take_page handles tuple, empty, and offset-past-end inputs",
+      "script": "verify_edges.py"
+    },
+    {
+      "name": "invalid-types",
+      "criterion": "take_page raises ValueError for unsupported collections or non-integer indexes",
+      "script": "verify_types.py"
+    },
+    {
+      "name": "invalid-bounds",
+      "criterion": "take_page raises ValueError for negative offsets or non-positive limits",
+      "script": "verify_bounds.py"
+    }
+  ],
+  "timeout_seconds": 20
+}

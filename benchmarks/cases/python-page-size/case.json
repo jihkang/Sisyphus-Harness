@@ -1,0 +1,41 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_case.v1",
+  "id": "python-page-size",
+  "instruction": "Fix parse_page_size(value) to accept an integer or an ASCII base-10 digit string from 1 through 500. Reject booleans, unsupported types, padded or signed strings, non-ASCII or non-digit strings, and out-of-range values with ValueError.",
+  "acceptance_criteria": [
+    "parse_page_size accepts integer values from 1 through 500",
+    "parse_page_size accepts ASCII digit strings from 1 through 500",
+    "parse_page_size raises ValueError for booleans and unsupported types",
+    "parse_page_size raises ValueError for padded, signed, non-ASCII, or non-digit strings",
+    "parse_page_size raises ValueError for values outside 1 through 500"
+  ],
+  "workspace": "workspace",
+  "verifiers": [
+    {
+      "name": "integer-values",
+      "criterion": "parse_page_size accepts integer values from 1 through 500",
+      "script": "verify_integer.py"
+    },
+    {
+      "name": "digit-strings",
+      "criterion": "parse_page_size accepts ASCII digit strings from 1 through 500",
+      "script": "verify_digit_string.py"
+    },
+    {
+      "name": "invalid-types",
+      "criterion": "parse_page_size raises ValueError for booleans and unsupported types",
+      "script": "verify_types.py"
+    },
+    {
+      "name": "invalid-format",
+      "criterion": "parse_page_size raises ValueError for padded, signed, non-ASCII, or non-digit strings",
+      "script": "verify_format.py"
+    },
+    {
+      "name": "range",
+      "criterion": "parse_page_size raises ValueError for values outside 1 through 500",
+      "script": "verify_range.py"
+    }
+  ],
+  "timeout_seconds": 20
+}

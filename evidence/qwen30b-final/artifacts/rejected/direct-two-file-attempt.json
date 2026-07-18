@@ -1,0 +1,16 @@
+{
+  "artifact_path": "$REJECTED_DIRECT_WORKSPACE/.git/sisyphus-harness/artifacts/agent/qwen30b-active-direct-20260718",
+  "changed_paths": [
+    "names.py"
+  ],
+  "compactions": 3,
+  "reason": "stagnation threshold reached",
+  "run_id": "qwen30b-active-direct-20260718",
+  "schema_version": "sisyphus_harness.agent_run.v1",
+  "steps": 8,
+  "success": false,
+  "summary": "normalize_name now enforces string input, normalizes ASCII letters, preserves digits, replaces runs of whitespace/underscore/hyphen with single underscore, removes non-ASCII characters, and strips edge underscores. Bounded retries validation remains unchanged but needs explicit verification for integer range 0-5.",
+  "verifications": 1,
+  "workspace_state_after": "sha256:be4d867f14ee4c9274c38687479070c18b13df3e01ec8b05b49b6cca246d7b45",
+  "workspace_state_before": "sha256:ad49b38dfb2d5ae05198546658519fea172a08ad1bc9cf44aa9f35f446a567d1"
+}

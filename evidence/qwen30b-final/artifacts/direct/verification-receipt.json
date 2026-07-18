@@ -1,0 +1,44 @@
+{
+  "commands": [
+    {
+      "argv": [
+        "python3",
+        "verify_arithmetic.py"
+      ],
+      "criteria": [
+        "add returns the arithmetic sum for positive, negative, and zero values"
+      ],
+      "duration_ms": 24,
+      "error": null,
+      "executable_path": "/usr/bin/python3",
+      "executable_sha256": "sha256:179301dcb41ea78accc3fa0048a7e6f6710d891945a751a34addd622020c1818",
+      "exit_code": 0,
+      "failure_category": null,
+      "name": "arithmetic",
+      "passed": true,
+      "stderr_path": "00-arithmetic/stderr.txt",
+      "stdout_path": "00-arithmetic/stdout.txt",
+      "timed_out": false,
+      "workspace_state_after": "sha256:563ef4a97b6383ff61a9b2b7fdbf79c367f702513bb7d80cc168618ae94598da",
+      "workspace_state_before": "sha256:563ef4a97b6383ff61a9b2b7fdbf79c367f702513bb7d80cc168618ae94598da",
+      "workspace_unchanged": true
+    }
+  ],
+  "criteria": [
+    {
+      "command_name": "arithmetic",
+      "criterion": "add returns the arithmetic sum for positive, negative, and zero values",
+      "passed": true
+    }
+  ],
+  "finished_at": "2026-07-17T19:25:26.274667Z",
+  "passed": true,
+  "run_id": "qwen30b-active-direct-proof-20260718-final-3",
+  "schema_version": "sisyphus_harness.verification.v1",
+  "started_at": "2026-07-17T19:25:26.097945Z",
+  "workspace": "$DIRECT_WORKSPACE",
+  "workspace_state_after": "sha256:563ef4a97b6383ff61a9b2b7fdbf79c367f702513bb7d80cc168618ae94598da",
+  "workspace_state_before": "sha256:563ef4a97b6383ff61a9b2b7fdbf79c367f702513bb7d80cc168618ae94598da",
+  "workspace_unchanged": true,
+  "worktree_commit_sha": "9a6e3fcbe432e1e47e154fe3df3ec5c69853bf4f"
+}

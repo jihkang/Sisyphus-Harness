@@ -1,0 +1,51 @@
+{
+  "schema_version": "sisyphus_harness.final_execution_summary.v1",
+  "evolution_id": "qwen30b-gepa-20260718-11",
+  "accepted": true,
+  "active_candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+  "metrics": {
+    "train": {
+      "baseline_mean_score": 0.6864967105263158,
+      "candidate_mean_score": 0.9171052631578948,
+      "mean_score_delta": 0.230608552631579,
+      "baseline_success_rate": 0.5,
+      "candidate_success_rate": 0.75,
+      "active_revalidation_mean_score": 0.9171052631578948,
+      "active_revalidation_success_rate": 0.75
+    },
+    "holdout_v3": {
+      "baseline_mean_score": 0.7183881578947369,
+      "candidate_mean_score": 0.9523026315789473,
+      "mean_score_delta": 0.23391447368421037,
+      "baseline_success_rate": 0.5,
+      "candidate_success_rate": 1.0,
+      "active_revalidation_mean_score": 0.9523026315789473,
+      "active_revalidation_success_rate": 1.0
+    },
+    "all_hard_gates_passed": true
+  },
+  "direct_proof": {
+    "run_id": "qwen30b-active-direct-proof-20260718",
+    "success": true,
+    "steps": 3,
+    "compactions": 1,
+    "verifications": 1,
+    "changed_paths": [
+      "arithmetic.py"
+    ]
+  },
+  "queue_proof": {
+    "job_id": "job-80de51feba2d4faf847a334f4fee06b3",
+    "run_id": "qwen30b-active-queue-proof-20260718",
+    "status": "completed",
+    "attempts": 1,
+    "success": true,
+    "steps": 3,
+    "compactions": 1,
+    "verifications": 1,
+    "idempotency_key": "qwen30b-active-queue-proof-v1",
+    "duplicate_jobs_created": false
+  },
+  "rejected_execution_count": 1,
+  "rejected_execution_note": "The first two-file direct proof compacted three times but failed closed at the stagnation threshold; it is retained separately and is not presented as successful evidence."
+}

@@ -1,0 +1,41 @@
+[provider]
+base_url = "http://127.0.0.1:8080/v1"
+model = "local-coding-model"
+timeout_seconds = 300
+temperature = 0.1
+max_tokens = 4096
+
+[agent]
+max_steps = 24
+max_runtime_seconds = 1800
+max_file_bytes = 262144
+max_tool_output_chars = 24000
+max_protocol_errors = 4
+max_compactions = 8
+
+[cadence]
+compaction_interval_steps = 6
+context_char_limit = 48000
+keep_recent_events = 4
+reflection_interval_steps = 4
+observation_interval_steps = 3
+verification_interval_mutations = 3
+stagnation_limit = 4
+
+[prompts]
+strategy = "Inspect before editing, make the smallest coherent change, and finish only when every acceptance criterion is satisfied."
+
+[evolution]
+max_metric_calls = 12
+max_candidate_proposals = 4
+seed = 0
+min_train_delta = 0.01
+min_holdout_delta = 0.05
+
+[commands.tests]
+argv = ["python3", "-m", "unittest", "discover"]
+timeout_seconds = 120
+criteria = ["valid ports are accepted", "invalid ports raise ValueError"]
+
+[verify]
+commands = ["tests"]
