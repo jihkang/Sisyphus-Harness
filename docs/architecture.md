@@ -3,6 +3,10 @@
 Sisyphus Harness separates authority, execution, verification, and optimization
 so a model cannot turn a successful coding action into lifecycle authority.
 
+For the complete module map, storage schemas, direct and queued execution flows,
+benchmark scoring, GEPA evolution, and policy data lineage, see
+[Architecture and Data Pipeline](architecture-and-data-pipeline.md).
+
 ## Components
 
 `authority.py`, `database.py`, and `queue.py`
