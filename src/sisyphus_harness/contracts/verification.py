@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 import math
 
+from .codec import WireModel
+
 
 @dataclass(frozen=True, slots=True)
-class CommandSpec:
+class CommandSpec(WireModel):
     name: str
     argv: tuple[str, ...]
     timeout_seconds: float
@@ -31,7 +33,7 @@ class CommandSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class CommandResult:
+class CommandResult(WireModel):
     name: str
     argv: tuple[str, ...]
     criteria: tuple[str, ...]
@@ -49,29 +51,9 @@ class CommandResult:
     failure_category: str | None = None
     error: str | None = None
 
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "name": self.name,
-            "argv": list(self.argv),
-            "criteria": list(self.criteria),
-            "passed": self.passed,
-            "timed_out": self.timed_out,
-            "exit_code": self.exit_code,
-            "duration_ms": self.duration_ms,
-            "executable_path": self.executable_path,
-            "executable_sha256": self.executable_sha256,
-            "stdout_path": self.stdout_path,
-            "stderr_path": self.stderr_path,
-            "workspace_state_before": self.workspace_state_before,
-            "workspace_state_after": self.workspace_state_after,
-            "workspace_unchanged": self.workspace_unchanged,
-            "failure_category": self.failure_category,
-            "error": self.error,
-        }
-
 
 @dataclass(frozen=True, slots=True)
-class VerificationReceipt:
+class VerificationReceipt(WireModel):
     run_id: str
     workspace: str
     worktree_commit_sha: str
@@ -94,17 +76,6 @@ class VerificationReceipt:
             for command in self.commands
             for criterion in command.criteria
         ]
-        return {
-            "schema_version": self.schema_version,
-            "run_id": self.run_id,
-            "workspace": self.workspace,
-            "worktree_commit_sha": self.worktree_commit_sha,
-            "started_at": self.started_at,
-            "finished_at": self.finished_at,
-            "passed": self.passed,
-            "commands": [command.to_dict() for command in self.commands],
-            "criteria": criteria,
-            "workspace_state_before": self.workspace_state_before,
-            "workspace_state_after": self.workspace_state_after,
-            "workspace_unchanged": self.workspace_unchanged,
-        }
+        payload = super().to_dict()
+        payload["criteria"] = criteria
+        return payload

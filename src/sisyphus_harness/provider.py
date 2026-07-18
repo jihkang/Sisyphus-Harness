@@ -8,6 +8,7 @@ import urllib.error
 import urllib.request
 
 from .config import ProviderSettings
+from .contracts.codec import WireModel
 from .protocol import AGENT_DECISION_RESPONSE_FORMAT
 
 
@@ -19,12 +20,9 @@ MAX_RESPONSE_BYTES = 16 * 1024 * 1024
 
 
 @dataclass(frozen=True, slots=True)
-class ChatMessage:
+class ChatMessage(WireModel):
     role: str
     content: str
-
-    def to_dict(self) -> dict[str, str]:
-        return {"role": self.role, "content": self.content}
 
 
 @dataclass(frozen=True, slots=True)

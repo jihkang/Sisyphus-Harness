@@ -4,11 +4,12 @@ from dataclasses import dataclass
 import hashlib
 import json
 
+from .codec import WireModel, strict_object
 from .errors import CandidateError
 
 
 @dataclass(frozen=True, slots=True)
-class CadencePolicy:
+class CadencePolicy(WireModel):
     compaction_interval_steps: int = 6
     context_char_limit: int = 48_000
     keep_recent_events: int = 4
@@ -38,20 +39,9 @@ class CadencePolicy:
         if not 2 <= self.stagnation_limit <= 32:
             raise ValueError("stagnation_limit is outside the supported range")
 
-    def to_dict(self) -> dict[str, int]:
-        return {
-            "compaction_interval_steps": self.compaction_interval_steps,
-            "context_char_limit": self.context_char_limit,
-            "keep_recent_events": self.keep_recent_events,
-            "reflection_interval_steps": self.reflection_interval_steps,
-            "observation_interval_steps": self.observation_interval_steps,
-            "verification_interval_mutations": self.verification_interval_mutations,
-            "stagnation_limit": self.stagnation_limit,
-        }
-
 
 @dataclass(frozen=True, slots=True)
-class CandidatePolicy:
+class CandidatePolicy(WireModel):
     strategy_prompt: str
     cadence: CadencePolicy
     schema_version: str = "sisyphus_harness.policy_candidate.v1"
@@ -82,12 +72,9 @@ class CandidatePolicy:
         }
 
     def to_dict(self) -> dict[str, object]:
-        return {
-            "schema_version": self.schema_version,
-            "strategy_prompt": self.strategy_prompt,
-            "cadence": self.cadence.to_dict(),
-            "candidate_hash": self.candidate_hash,
-        }
+        payload = super().to_dict()
+        payload["candidate_hash"] = self.candidate_hash
+        return payload
 
     @property
     def candidate_hash(self) -> str:
@@ -104,13 +91,12 @@ class CandidatePolicy:
 
     @classmethod
     def from_gepa_candidate(cls, raw: object) -> CandidatePolicy:
-        if not isinstance(raw, dict):
-            raise CandidateError("GEPA candidate must be an object")
-        unknown = sorted(set(raw).difference({"strategy_prompt", "cadence_policy"}))
-        if unknown:
-            raise CandidateError(
-                f"candidate contains unknown fields: {', '.join(unknown)}"
-            )
+        raw = strict_object(
+            raw,
+            required={"strategy_prompt", "cadence_policy"},
+            label="GEPA candidate",
+            error_type=CandidateError,
+        )
         strategy = raw.get("strategy_prompt")
         cadence_raw = raw.get("cadence_policy")
         if not isinstance(strategy, str):
@@ -128,17 +114,13 @@ class CandidatePolicy:
 
     @classmethod
     def from_dict(cls, raw: object) -> CandidatePolicy:
-        if not isinstance(raw, dict):
-            raise CandidateError("candidate artifact must be an object")
-        unknown = sorted(
-            set(raw).difference(
-                {"schema_version", "strategy_prompt", "cadence", "candidate_hash"}
-            )
+        raw = strict_object(
+            raw,
+            required={"schema_version", "strategy_prompt", "cadence"},
+            optional={"candidate_hash"},
+            label="candidate artifact",
+            error_type=CandidateError,
         )
-        if unknown:
-            raise CandidateError(
-                f"candidate artifact contains unknown fields: {', '.join(unknown)}"
-            )
         if raw.get("schema_version") != "sisyphus_harness.policy_candidate.v1":
             raise CandidateError("unsupported candidate schema version")
         strategy = raw.get("strategy_prompt")
@@ -155,8 +137,6 @@ class CandidatePolicy:
 
 
 def _parse_candidate_cadence(raw: object) -> CadencePolicy:
-    if not isinstance(raw, dict):
-        raise CandidateError("candidate cadence must be an object")
     allowed = {
         "compaction_interval_steps",
         "context_char_limit",
@@ -166,12 +146,12 @@ def _parse_candidate_cadence(raw: object) -> CadencePolicy:
         "verification_interval_mutations",
         "stagnation_limit",
     }
-    unknown = sorted(set(raw).difference(allowed))
-    missing = sorted(allowed.difference(raw))
-    if unknown:
-        raise CandidateError(f"candidate cadence has unknown fields: {', '.join(unknown)}")
-    if missing:
-        raise CandidateError(f"candidate cadence is missing fields: {', '.join(missing)}")
+    raw = strict_object(
+        raw,
+        required=allowed,
+        label="candidate cadence",
+        error_type=CandidateError,
+    )
     values: dict[str, int] = {}
     for key in sorted(allowed):
         value = raw[key]
