@@ -3,11 +3,11 @@ from __future__ import annotations
 from .workspace_bundle import (
     FilesystemWorkspaceBundleStore,
     WorkspaceBundleError,
-    snapshot_materialized_workspace,
+    workspace_tree_hash,
 )
 
 __all__ = [
     "FilesystemWorkspaceBundleStore",
     "WorkspaceBundleError",
-    "snapshot_materialized_workspace",
+    "workspace_tree_hash",
 ]

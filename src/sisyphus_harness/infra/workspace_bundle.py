@@ -11,7 +11,7 @@ import tarfile
 import tempfile
 from typing import BinaryIO
 
-from ..contracts.workspace import WorkspaceBundleRef, WorkspaceSnapshot
+from ..contracts.workspace import WorkspaceBundleRef
 from ..receipts import write_json_atomic
 from ..workspace import snapshot_workspace
 
@@ -168,7 +168,7 @@ class FilesystemWorkspaceBundleStore:
             raise WorkspaceBundleError("workspace bundle reference ID mismatch")
         return ref
 
-    def materialize(self, ref: WorkspaceBundleRef, destination: Path) -> WorkspaceSnapshot:
+    def materialize(self, ref: WorkspaceBundleRef, destination: Path) -> str:
         if ref.size_bytes > self.max_bundle_bytes:
             raise WorkspaceBundleError("workspace bundle exceeds archive size limit")
         if ref.entry_count > self.max_entries:
@@ -195,15 +195,11 @@ class FilesystemWorkspaceBundleStore:
         try:
             manifest, extracted_entries = self._extract(archive_path, temporary)
             _validate_manifest(manifest, ref, extracted_entries)
-            snapshot = snapshot_materialized_workspace(
-                temporary,
-                source_commit_sha=ref.source_commit_sha,
-                changed_paths=ref.changed_paths,
-            )
-            if snapshot.state_hash != ref.tree_hash:
+            tree_hash = workspace_tree_hash(temporary)
+            if tree_hash != ref.tree_hash:
                 raise WorkspaceBundleError("materialized workspace tree hash mismatch")
             os.replace(temporary, target)
-            return snapshot
+            return tree_hash
         except Exception:
             shutil.rmtree(temporary, ignore_errors=True)
             raise
@@ -306,21 +302,11 @@ class FilesystemWorkspaceBundleStore:
         return self.root / f"{_digest_from_bundle_id(ref.bundle_id)}.json"
 
 
-def snapshot_materialized_workspace(
-    workspace: Path,
-    *,
-    source_commit_sha: str,
-    changed_paths: tuple[str, ...] = (),
-) -> WorkspaceSnapshot:
+def workspace_tree_hash(workspace: Path) -> str:
     root = workspace.resolve()
     if not root.is_dir():
         raise WorkspaceBundleError(f"materialized workspace does not exist: {workspace}")
-    entries = _scan_tree(root)
-    return WorkspaceSnapshot(
-        commit_sha=source_commit_sha,
-        state_hash=_tree_hash(entries),
-        changed_paths=changed_paths,
-    )
+    return _tree_hash(_scan_tree(root))
 
 
 def _git_workspace_paths(workspace: Path) -> tuple[str, ...]:

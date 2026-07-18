@@ -15,7 +15,7 @@ from sisyphus_harness.contracts import WorkspaceBundleRef
 from sisyphus_harness.infra.workspace_bundle import (
     FilesystemWorkspaceBundleStore,
     WorkspaceBundleError,
-    snapshot_materialized_workspace,
+    workspace_tree_hash,
 )
 from sisyphus_harness.workspace import snapshot_workspace
 
@@ -50,14 +50,14 @@ class WorkspaceBundleTests(unittest.TestCase):
         second = self.store.create(self.repository)
         loaded = self.store.load(first.bundle_id)
         destination = self.root / "materialized"
-        materialized = self.store.materialize(first, destination)
+        materialized_tree_hash = self.store.materialize(first, destination)
 
         self.assertEqual(first, second)
         self.assertEqual(loaded, first)
         self.assertEqual(first.source_commit_sha, source.commit_sha)
         self.assertEqual(first.source_state_hash, source.state_hash)
         self.assertEqual(first.changed_paths, source.changed_paths)
-        self.assertEqual(materialized.state_hash, first.tree_hash)
+        self.assertEqual(materialized_tree_hash, first.tree_hash)
         self.assertEqual((destination / "tracked.txt").read_text(), "baseline\n")
         self.assertEqual((destination / "nested" / "data.txt").read_text(), "payload\n")
         self.assertTrue((destination / "script-link").is_symlink())
@@ -67,12 +67,8 @@ class WorkspaceBundleTests(unittest.TestCase):
         self.assertFalse((destination / ".git").exists())
 
         (destination / "tracked.txt").write_text("mutated\n", encoding="utf-8")
-        changed = snapshot_materialized_workspace(
-            destination,
-            source_commit_sha=first.source_commit_sha,
-            changed_paths=first.changed_paths,
-        )
-        self.assertNotEqual(changed.state_hash, first.tree_hash)
+        changed_tree_hash = workspace_tree_hash(destination)
+        self.assertNotEqual(changed_tree_hash, first.tree_hash)
 
     def test_staged_and_unstaged_states_produce_distinct_bundles(self) -> None:
         tracked = self.repository / "tracked.txt"

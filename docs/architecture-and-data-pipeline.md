@@ -132,7 +132,9 @@ service 대신 `ports`에 의존한다. 현재 CLI, worker, benchmark 조립은
 `VerificationPort`, `AgentRunPort`, `AgentRunFactoryPort`와 in-process adapter는
 구현되어 있다. `infra/workspace_bundle.py`에는 content-addressed bundle 생성과
 안전한 materialization primitive가 있지만 Agent와 Verifier 요청에는 아직 연결되지
-않았다.
+않았다. materialized tree에는 `.git` metadata가 없고 현재 `BoundedVerifier`는 유효한
+Git HEAD를 요구하므로, 연결 시에는 bundle tree hash 기반 mutation checker 또는
+ephemeral Git 초기화 adapter가 추가로 필요하다.
 
 다음 항목은 accepted ADR의 **목표 상태이며 현재 runtime 동작이 아니다**.
 
