@@ -1,0 +1,66 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_lock.v1",
+  "dataset": "benchmarks/holdout.json",
+  "identity": "holdout-v3",
+  "frozen_at": "2026-07-17T18:55:44Z",
+  "frozen_before_model_evaluation": true,
+  "aggregate_sha256": "81eb2771743b8cb04ee56a6cc89deedc3b50609cefd0f7b60d7d19a58de449d7",
+  "files": [
+    {
+      "path": "benchmarks/holdout.json",
+      "sha256": "ffda9f2d5d9303e91af8313818dd9b99ea6172835324c7dc17456e3b072e13ae"
+    },
+    {
+      "path": "benchmarks/cases/python-cache-key/case.json",
+      "sha256": "ae3fc2c2b554a8911bc72c9c3091930ac0ffa6ac603482275fd88c060dad26a6"
+    },
+    {
+      "path": "benchmarks/cases/python-cache-key/verify_case.py",
+      "sha256": "fe39f9ae640da31cb51560dc4eeb9f1f404a2525a893c451fdaa4c2b4fced2d8"
+    },
+    {
+      "path": "benchmarks/cases/python-cache-key/verify_characters.py",
+      "sha256": "f06cbf3b2bb74d0d37e690a1c075f05ec55b5ee9b8707b68feb4e90111a7abc6"
+    },
+    {
+      "path": "benchmarks/cases/python-cache-key/verify_edges.py",
+      "sha256": "b72669ff605b35c086daeeaaf89ff69df749c5468e73708440ccd5a577bb94a9"
+    },
+    {
+      "path": "benchmarks/cases/python-cache-key/verify_separators.py",
+      "sha256": "a743e190cbb194d80e0ab1f86505e70235e9884afcc666f6f73044f20a9f5666"
+    },
+    {
+      "path": "benchmarks/cases/python-cache-key/verify_types.py",
+      "sha256": "7e52f1cd0d0c3634a8c5781103dbe1e589ab65546a675fd3bfb4db992bef6ae5"
+    },
+    {
+      "path": "benchmarks/cases/python-cache-key/workspace/cache_keys.py",
+      "sha256": "fbd4f35f10b62fe11caf394f3898b79781a10b253baf89ddf5e4fc9dd35f0119"
+    },
+    {
+      "path": "benchmarks/cases/python-retry-delay/case.json",
+      "sha256": "40b757972cd8aca3e29cd77280ec2f53d5029a69c10b02b3b8f59e85a80e020e"
+    },
+    {
+      "path": "benchmarks/cases/python-retry-delay/verify_cap.py",
+      "sha256": "0a74f01cc0fac9107c38902e379749d96effb8d809919ac70959a62ea6f2d9e0"
+    },
+    {
+      "path": "benchmarks/cases/python-retry-delay/verify_exponential.py",
+      "sha256": "4f9e16aa53c822842d0f3a7574266b01b18a56e1a64d42bc7ab64e1e89edbb18"
+    },
+    {
+      "path": "benchmarks/cases/python-retry-delay/verify_ranges.py",
+      "sha256": "464f0db4db50fc2918e5150acd28bae8cbcbf1fad0289135adce84e00c1b4206"
+    },
+    {
+      "path": "benchmarks/cases/python-retry-delay/verify_types.py",
+      "sha256": "3f803a5a0917044d68ae6b787c834f0dc9e8eb5e9b6ecfd19fdd9f009ead7439"
+    },
+    {
+      "path": "benchmarks/cases/python-retry-delay/workspace/backoff.py",
+      "sha256": "7b0c196e763dadfcc2f6fe64484a9f387c2fe5b814a320cbfb5b6928944e27c0"
+    }
+  ]
+}

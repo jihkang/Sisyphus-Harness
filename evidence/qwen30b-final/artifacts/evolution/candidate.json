@@ -1,0 +1,14 @@
+{
+  "cadence": {
+    "compaction_interval_steps": 2,
+    "context_char_limit": 6000,
+    "keep_recent_events": 1,
+    "observation_interval_steps": 2,
+    "reflection_interval_steps": 3,
+    "stagnation_limit": 4,
+    "verification_interval_mutations": 2
+  },
+  "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+  "schema_version": "sisyphus_harness.policy_candidate.v1",
+  "strategy_prompt": "Treat the operator task and acceptance criteria as the approved specification. Distinguish stated requirements from inferences, inspect the relevant source before editing, avoid invented behavior, make the smallest coherent change, and finish only when every criterion has a concrete verification path. Prioritize exact text matching for replacements, use explicit search patterns, and verify changes against all acceptance clauses before finalizing."
+}

@@ -1,0 +1,69 @@
+{
+  "schema_version": "sisyphus_harness.final_verification.v1",
+  "verified_at": "2026-07-17T19:31:35Z",
+  "checks": [
+    {
+      "name": "full-unit-suite",
+      "command": "uv run coverage run --branch -m unittest discover -s tests -t .",
+      "passed": true,
+      "tests_run": 135
+    },
+    {
+      "name": "branch-coverage",
+      "command": "uv run coverage report -m",
+      "passed": true,
+      "required_percent": 90.0,
+      "actual_percent": 91.45482388973966,
+      "statements": 2507,
+      "missing_lines": 154,
+      "branches": 758,
+      "missing_branches": 125
+    },
+    {
+      "name": "installed-gepa-integration",
+      "command": "uv run --extra evolution python -m unittest tests.test_gepa_integration",
+      "passed": true,
+      "tests_run": 1,
+      "gepa_version": "0.1.4"
+    },
+    {
+      "name": "compileall",
+      "command": "uv run python -m compileall -q src tests benchmarks",
+      "passed": true
+    },
+    {
+      "name": "lock-check",
+      "command": "uv lock --check",
+      "passed": true,
+      "uv_lock_sha256": "c567a1352160cfd8c0abaafd34a947630d12040786defa4d9a4030be25a0fcf5"
+    },
+    {
+      "name": "diff-check",
+      "command": "git diff --check",
+      "passed": true
+    },
+    {
+      "name": "offline-build",
+      "command": "uv build --offline",
+      "passed": true,
+      "wheel": {
+        "name": "sisyphus_harness-0.1.0-py3-none-any.whl",
+        "sha256": "d527cd710c7885ffb7d07e8847380460988612f9c2cb0b27102ef5402e57295e"
+      },
+      "sdist": {
+        "name": "sisyphus_harness-0.1.0.tar.gz",
+        "sha256": "4e543c30fe42a9e43fd13bf83b2307d0c7e4e6afd119ced323bd30973c81a567"
+      }
+    },
+    {
+      "name": "offline-wheel-install",
+      "command": "python -m pip install --no-index --no-deps <wheel>",
+      "passed": true,
+      "python_version": "3.14.4",
+      "installed_version": "0.1.0",
+      "checkout_imported": false,
+      "cli_authority_init_passed": true
+    }
+  ],
+  "all_checks_passed": true
+}

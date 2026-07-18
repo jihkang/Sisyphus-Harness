@@ -1,0 +1,36 @@
+{
+  "attempts": 1,
+  "created_at": "2026-07-17T19:25:45.767686Z",
+  "idempotency_key": "qwen30b-active-queue-proof-v1",
+  "job_id": "job-80de51feba2d4faf847a334f4fee06b3",
+  "kind": "coding-agent",
+  "lease_expires_at": null,
+  "lease_owner": null,
+  "payload": {
+    "config": ".sisyphus-harness.toml",
+    "criteria": [
+      "add returns the arithmetic sum for positive, negative, and zero values"
+    ],
+    "policy": "active",
+    "run_id": "qwen30b-active-queue-proof-20260718",
+    "task": "Fix add(left, right) so it returns the arithmetic sum of its two arguments without changing the public signature or unrelated file content."
+  },
+  "result": {
+    "artifact_path": "$QUEUE_WORKSPACE/.git/sisyphus-harness/artifacts/agent/qwen30b-active-queue-proof-20260718",
+    "changed_paths": [
+      "arithmetic.py"
+    ],
+    "compactions": 1,
+    "reason": "final verification passed",
+    "run_id": "qwen30b-active-queue-proof-20260718",
+    "schema_version": "sisyphus_harness.agent_run.v1",
+    "steps": 3,
+    "success": true,
+    "summary": "Changed subtraction to addition in add function to return arithmetic sum, satisfying all acceptance criteria.",
+    "verifications": 1,
+    "workspace_state_after": "sha256:563ef4a97b6383ff61a9b2b7fdbf79c367f702513bb7d80cc168618ae94598da",
+    "workspace_state_before": "sha256:b3b752c97a2f38393cc2ff2bc55e497e263e5d4393effdab4186ae81bb5ed80c"
+  },
+  "status": "completed",
+  "updated_at": "2026-07-17T19:26:08.768357Z"
+}

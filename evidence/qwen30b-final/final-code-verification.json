@@ -1,0 +1,124 @@
+{
+  "schema_version": "sisyphus_harness.final_code_verification.v1",
+  "verified_at": "2026-07-18T05:39:20Z",
+  "basis": "post-code-review source and unchanged signed active policy",
+  "checks": [
+    {
+      "name": "full-unit-suite",
+      "command": "uv run --frozen coverage run --branch -m unittest discover -s tests -t .",
+      "passed": true,
+      "tests_run": 139,
+      "tests_skipped": 0
+    },
+    {
+      "name": "branch-coverage",
+      "command": "uv run --frozen coverage report -m --fail-under=90",
+      "passed": true,
+      "required_percent": 90.0,
+      "actual_percent": 91.56662665066027,
+      "statements": 2556,
+      "missing_lines": 155,
+      "branches": 776,
+      "missing_branches": 126
+    },
+    {
+      "name": "installed-gepa-integration",
+      "command": "uv run --frozen --extra evolution python -m unittest tests.test_gepa_integration -v",
+      "passed": true,
+      "tests_run": 1,
+      "gepa_version": "0.1.4"
+    },
+    {
+      "name": "compileall",
+      "command": "uv run --frozen python -m compileall -q src tests benchmarks",
+      "passed": true
+    },
+    {
+      "name": "lock-check",
+      "command": "uv lock --check",
+      "passed": true,
+      "uv_lock_sha256": "c567a1352160cfd8c0abaafd34a947630d12040786defa4d9a4030be25a0fcf5"
+    },
+    {
+      "name": "offline-build",
+      "command": "uv build --offline --clear",
+      "passed": true,
+      "wheel": {
+        "name": "sisyphus_harness-0.1.0-py3-none-any.whl",
+        "sha256": "d9f2dcd1257065238c99b1b6ad1afb382940fcd53e29473a4942076e9a57d51f"
+      },
+      "sdist": {
+        "name": "sisyphus_harness-0.1.0.tar.gz",
+        "sha256": "8388041d37ec55e4a8233d70b4e7581776828482505268c8c84f3872b8ea93a2"
+      }
+    },
+    {
+      "name": "offline-wheel-install",
+      "command": "uv pip install --python <PYTHON_3_14> --no-index --no-deps <wheel>",
+      "passed": true,
+      "python_version": "3.14.4",
+      "installed_version": "0.1.0",
+      "checkout_imported": false,
+      "cli_help_passed": true,
+      "cli_authority_init_passed": true
+    },
+    {
+      "name": "real-model-final-code-train",
+      "passed": true,
+      "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+      "mean_score": 0.8973190789473684,
+      "baseline_delta": 0.21082236842105262,
+      "success_rate": 0.75,
+      "all_hard_gates_passed": true
+    },
+    {
+      "name": "real-model-final-code-holdout-v3",
+      "passed": true,
+      "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+      "mean_score": 0.9391447368421052,
+      "baseline_delta": 0.22075657894736833,
+      "success_rate": 1.0,
+      "all_hard_gates_passed": true
+    },
+    {
+      "name": "real-model-final-code-direct",
+      "passed": true,
+      "run_id": "qwen30b-final-source-direct-20260718",
+      "steps": 3,
+      "compactions": 1,
+      "verifications": 1
+    },
+    {
+      "name": "real-model-final-code-queue",
+      "passed": true,
+      "job_id": "job-b9dec182977c4406bc69796f7c20f1b9",
+      "run_id": "qwen30b-final-source-queue-20260718",
+      "idempotency_key": "qwen30b-final-source-queue-v1",
+      "attempts": 1,
+      "idempotent_submissions": 3,
+      "steps": 3,
+      "compactions": 1,
+      "verifications": 1
+    },
+    {
+      "name": "evidence-manifest",
+      "command": "uv run --frozen python evidence/qwen30b-final/verify_manifest.py",
+      "passed": true,
+      "checked_files": 119
+    },
+    {
+      "name": "clean-copy-staged-diff",
+      "command": "git diff --cached --check; git diff --check HEAD^...HEAD; git show --check --format= HEAD",
+      "passed": true
+    },
+    {
+      "name": "clean-copy-core-suite",
+      "command": "uv run --frozen coverage run --branch -m unittest discover -s tests -t .; uv run --frozen coverage report -m --fail-under=90",
+      "passed": true,
+      "tests_run": 139,
+      "tests_skipped_without_evolution_extra": 1,
+      "actual_percent": 91.56662665066027
+    }
+  ],
+  "all_checks_passed": true
+}

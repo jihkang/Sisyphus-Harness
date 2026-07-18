@@ -1,0 +1,17 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_case.v1",
+  "id": "python-add",
+  "instruction": "Fix math_utils.add so it returns the arithmetic sum of its two arguments.",
+  "acceptance_criteria": [
+    "add returns correct sums for positive, negative, and zero values"
+  ],
+  "workspace": "workspace",
+  "verifiers": [
+    {
+      "name": "correct-sums",
+      "criterion": "add returns correct sums for positive, negative, and zero values",
+      "script": "verify_add.py"
+    }
+  ],
+  "timeout_seconds": 20
+}

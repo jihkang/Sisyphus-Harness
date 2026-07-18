@@ -1,0 +1,87 @@
+{
+  "schema_version": "sisyphus_harness.final_code_change_hashes.v1",
+  "basis": "original evidence manifest versus post-review source tree",
+  "candidate_hash_changed": false,
+  "changes": [
+    {
+      "path": "src/sisyphus_harness/agent.py",
+      "before_sha256": "46dcd52a527b974b650d82cad95a408ca82c4192ca30b3146609b00bdb96f012",
+      "after_sha256": "cd4b8197a5a1dfe381f24dccc5e816d5d3937fbda4b00b164fdacbff80ca1175"
+    },
+    {
+      "path": "src/sisyphus_harness/cli.py",
+      "before_sha256": "f7c0d6ff340f50c533a8f84c8190eaf8285ce0f042d1bee9f0c69539f34c5a4a",
+      "after_sha256": "979263f6f590a9eaa8ffea2cd8f46b54162939d86a1d90b965f83fcfec498bb7"
+    },
+    {
+      "path": "src/sisyphus_harness/config.py",
+      "before_sha256": "481287ac71a070811ac0217648045bcf272ba413ec0b054c65fdb64062f70073",
+      "after_sha256": "98fcb258e1e073948912f2c82d18a0f785a1c83833342ad5f708d4541b10c871"
+    },
+    {
+      "path": "src/sisyphus_harness/evolution.py",
+      "before_sha256": "74d0917a5e6c9fe4675c48f4f29d868ff3c8ee69320d7794205fe70473a6feff",
+      "after_sha256": "c4e274e5607f17b69f286aadf0ae477aa9ede64aa3695f6a3a6c4548059ac3a0"
+    },
+    {
+      "path": "src/sisyphus_harness/policy.py",
+      "before_sha256": "1e57b3e40a5a6dbd924903ddea6bfaf81f41cffd28793ffd5dd3a352e1095a93",
+      "after_sha256": "c5e6ee36dd9c5668d1f0d370cb0b97c0ba20cd24e111b8eda4eb1701ce529468"
+    },
+    {
+      "path": "src/sisyphus_harness/provider.py",
+      "before_sha256": "618227f8766ee84c56caccd349a3ac6c334867a403486f336eec45765a86ed3f",
+      "after_sha256": "505be1231354e1af8d68caeea04902427ffd4645152a067bf6f070d49eb93f41"
+    },
+    {
+      "path": "src/sisyphus_harness/queue.py",
+      "before_sha256": "6147ca236d2af7194b987e86618896bf610767f25bd41b71513c86a107caf298",
+      "after_sha256": "31ee90190d575248c853ea4e6e7c64de37f29e09e35df8c46cf1f629494b3e7e"
+    },
+    {
+      "path": "src/sisyphus_harness/worker.py",
+      "before_sha256": "0dac17159ce7bd95b54180676578a5975af4057fb1a6c43ce657eafd5ff7d4ee",
+      "after_sha256": "095444005e1a6d726cdba7e000527ac10ed8db9c6b3ed3f6bd088a2b944d0517"
+    },
+    {
+      "path": "tests/test_agent.py",
+      "before_sha256": "af5d97c86ff89e30c2e8cd0222792fca58a5304b55aa0e616885d2ecc78cdc33",
+      "after_sha256": "13cd31f76d627534875e957ee7077ab35f8389c35b186b1aaacffd105645090e"
+    },
+    {
+      "path": "tests/test_cli.py",
+      "before_sha256": "4b6ccc8dca3f477c191abdd8d0f7cf82b76547d31b2ae6467ab4ef2e7bb7bbbe",
+      "after_sha256": "6107a7cf96fcc0fc1203804f457fc3adab688fb96b2b6dbfe8a974a2f82a13ff"
+    },
+    {
+      "path": "tests/test_config.py",
+      "before_sha256": "242146261dd54b53da3d6810b07c6d51ab713c036b29c808ee7c8acc9184aac8",
+      "after_sha256": "9a65dd0b43323d8eb8431f09b2c43e498469c7b55f02c677cf25efb2a9aa8151"
+    },
+    {
+      "path": "tests/test_evolution.py",
+      "before_sha256": "fad9d28d8b4720d54fd7d622d071643da7ae856c81a7015b04f9d33eaf9c3931",
+      "after_sha256": "5ec1ddbd30f3badf2a1082e20819a776d1f041899f3d7c6b72f65d6f238f8198"
+    },
+    {
+      "path": "tests/test_policy.py",
+      "before_sha256": "f9624468ce3402ec321aedec67f21991244220261f8b7a0de1fed10cbcbeff45",
+      "after_sha256": "40684ade85b199179cec391d46474fa426a69db6a069d553f2d846825dd39224"
+    },
+    {
+      "path": "tests/test_provider.py",
+      "before_sha256": "c96ad59273d6f640eaeb4535d83082b85d76cce3de03baadccc67133b9f53e05",
+      "after_sha256": "0c050636a29fbb3aa2ae7e501e4c1bcf641d3f6238abdc79e8f6e01e992838a9"
+    },
+    {
+      "path": "tests/test_queue.py",
+      "before_sha256": "ea96ae3ae1b2738afda8b261fc6273f3feecdb661270c367759a577bdca5189d",
+      "after_sha256": "17b57d27a23cd26465d103cc06ef381cdf9cd6b10f12e62844a5d4472a9ce310"
+    },
+    {
+      "path": "tests/test_worker.py",
+      "before_sha256": "d6e173ea28e6127978b3ca8e8fb3d1ebe50969995aa9d2f3320276cdea7da031",
+      "after_sha256": "b6e0faee30964e36ac5056efc9d04718da6ca4f158a872ef26b2f8eca5b24ba1"
+    }
+  ]
+}

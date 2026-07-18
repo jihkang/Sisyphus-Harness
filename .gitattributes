@@ -1,0 +1,2 @@
+# Unified diff evidence requires a leading context marker on blank lines.
+evidence/**/*.diff -whitespace

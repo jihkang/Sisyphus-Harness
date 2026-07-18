@@ -1,0 +1,34 @@
+Iteration 0: Base program full valset score: 0.5083881578947368 over 4 / 4 examples
+Iteration 1: Selected program 0 score: 0.5083881578947368
+Iteration 1: Proposed new text for strategy_prompt: Treat the operator task and acceptance criteria as the approved specification. Distinguish stated requirements from inferences, inspect the relevant source before editing, avoid invented behavior, make the smallest coherent change, and finish only when every criterion has a concrete verification path. Prioritize exact text matching for replacements, use explicit search patterns, and verify changes against all acceptance clauses before finalizing.
+Iteration 1: Accepted candidate (subsample score 1.044078947368421 -> 2.6789473684210527); running full eval.
+Iteration 1: Found a better program on the valset with score 0.9171052631578946.
+Iteration 1: Valset score for new program: 0.9171052631578946 (coverage 4 / 4)
+Iteration 1: Val aggregate for new program: 0.9171052631578946
+Iteration 1: Individual valset scores for new program: {0: 0.9894736842105263, 2: 0.7, 3: 0.9894736842105263, 1: 0.9894736842105263}
+Iteration 1: Objective aggregate scores for new program: {'correctness': 1.0, 'step_efficiency': 0.6710526315789473, 'compaction_efficiency': 0.75, 'success': 0.75, 'hard_gate': 1.0}
+Iteration 1: New valset pareto front scores: {0: 0.9894736842105263, 1: 0.9894736842105263, 2: 0.7, 3: 0.9894736842105263}
+Iteration 1: Objective pareto front scores: {'correctness': 1.0, 'step_efficiency': 0.6710526315789473, 'compaction_efficiency': 0.75, 'success': 0.75, 'hard_gate': 1.0}
+Iteration 1: Valset pareto front aggregate score: 0.9171052631578946
+Iteration 1: Updated valset pareto front programs: {0: {0, 1}, 1: {0, 1}, 2: {1}, 3: {1}}
+Iteration 1: Updated objective pareto front programs: {'correctness': {1}, 'step_efficiency': {1}, 'compaction_efficiency': {1}, 'success': {1}, 'hard_gate': {0, 1}}
+Iteration 1: Best valset aggregate score so far: 0.9171052631578946
+Iteration 1: Best program as per aggregate score on valset: 1
+Iteration 1: Best score on valset: 0.9171052631578946
+Iteration 1: Linear pareto front program index: 1
+Iteration 1: New program candidate index: 1
+Iteration 2: Selected program 1 score: 0.9171052631578946
+Iteration 2: Proposed new text for cadence_policy: {"compaction_interval_steps":2,"context_char_limit":6000,"keep_recent_events":1,"observation_interval_steps":2,"reflection_interval_steps":3,"stagnation_limit":3,"verification_interval_mutations":2}
+Iteration 2: New subsample score 2.2651315789473685 is not better than old score 2.968421052631579, skipping
+Iteration 3: Selected program 1 score: 0.9171052631578946
+Iteration 3: Proposed new text for strategy_prompt: Treat the operator task and acceptance criteria as the approved specification. Distinguish stated requirements from inferences, inspect the relevant source before editing, avoid invented behavior, make the smallest coherent change, and finish only when every criterion has a concrete verification path. Prioritize exact text matching for replacements, use explicit search patterns, and verify changes against all acceptance clauses before finalizing. Focus on direct, minimal edits that address failing criteria first, then re-verify all criteria after each change. Use verification steps to confirm progress and avoid redundant modifications.
+Iteration 3: New subsample score 2.616578947368421 is not better than old score 2.6789473684210527, skipping
+Iteration 4: Selected program 1 score: 0.9171052631578946
+Iteration 4: Proposed new text for cadence_policy: {"compaction_interval_steps":3,"context_char_limit":8192,"keep_recent_events":2,"observation_interval_steps":3,"reflection_interval_steps":4,"stagnation_limit":5,"verification_interval_mutations":3}
+Iteration 4: New subsample score 2.968421052631579 is not better than old score 2.968421052631579, skipping
+Iteration 5: Selected program 1 score: 0.9171052631578946
+Iteration 5: Proposed new text for strategy_prompt: Treat the operator task and acceptance criteria as the approved specification. Distinguish stated requirements from inferences, inspect the relevant source before editing, avoid invented behavior, make the smallest coherent change, and finish only when every criterion has a concrete verification path. Prioritize exact text matching for replacements, use explicit search patterns, and verify changes against all acceptance clauses before finalizing. Minimize steps by combining verification and modification, avoid redundant tool calls, and ensure each action directly advances the task. Verify all criteria before finishing and repeat only necessary steps.
+Iteration 5: New subsample score 2.5389473684210526 is not better than old score 2.6789473684210527, skipping
+Iteration 6: Selected program 1 score: 0.9171052631578946
+Iteration 6: Proposed new text for cadence_policy: {"compaction_interval_steps":3,"context_char_limit":8000,"keep_recent_events":2,"observation_interval_steps":3,"reflection_interval_steps":4,"stagnation_limit":5,"verification_interval_mutations":3}
+Iteration 6: New subsample score 2.7407894736842104 is not better than old score 2.968421052631579, skipping

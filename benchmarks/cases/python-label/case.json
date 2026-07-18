@@ -1,0 +1,35 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_case.v1",
+  "id": "python-label",
+  "instruction": "Fix normalize_label(value) to return lowercase ASCII alphanumeric words separated by one underscore. Treat runs of whitespace, underscores, or hyphens as separators, remove other punctuation, collapse separators, and strip separators from both ends.",
+  "acceptance_criteria": [
+    "normalize_label lowercases ASCII letters and preserves digits",
+    "normalize_label collapses whitespace, underscore, and hyphen separator runs",
+    "normalize_label removes non-separator punctuation",
+    "normalize_label strips edge separators and handles punctuation-only input"
+  ],
+  "workspace": "workspace",
+  "verifiers": [
+    {
+      "name": "case-and-digits",
+      "criterion": "normalize_label lowercases ASCII letters and preserves digits",
+      "script": "verify_case.py"
+    },
+    {
+      "name": "separator-runs",
+      "criterion": "normalize_label collapses whitespace, underscore, and hyphen separator runs",
+      "script": "verify_separators.py"
+    },
+    {
+      "name": "punctuation",
+      "criterion": "normalize_label removes non-separator punctuation",
+      "script": "verify_punctuation.py"
+    },
+    {
+      "name": "edges",
+      "criterion": "normalize_label strips edge separators and handles punctuation-only input",
+      "script": "verify_edges.py"
+    }
+  ],
+  "timeout_seconds": 20
+}

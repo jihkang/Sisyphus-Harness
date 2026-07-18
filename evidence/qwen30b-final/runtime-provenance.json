@@ -1,0 +1,85 @@
+{
+  "schema_version": "sisyphus_harness.runtime_provenance.v1",
+  "captured_at": "2026-07-17T19:29:24Z",
+  "model": {
+    "repository": "Qwen/Qwen3-30B-A3B-GGUF",
+    "file": "Qwen3-30B-A3B-Q4_K_M.gguf",
+    "size_bytes": 18556685824,
+    "sha256": "0d003f6662faee786ed5da3e31b29c978de5ae5d275c8794c606a7f3c01aa8f5",
+    "local_path_redacted": "$MODEL_DIR/Qwen3-30B-A3B-Q4_K_M.gguf"
+  },
+  "llama_cpp": {
+    "version": "9290",
+    "commit": "bcfd1989e",
+    "compiler": "AppleClang 21.0.0.21000099",
+    "platform": "Darwin arm64",
+    "server_binary": "$HOMEBREW_PREFIX/Cellar/llama.cpp/9290/bin/llama-server",
+    "server_binary_size_bytes": 51424,
+    "server_binary_sha256": "f93d7ecf8dfbb5a2a3f3754f7000a87e1586083ac17e6dcfa3daa34c4cd786d3"
+  },
+  "server": {
+    "host": "127.0.0.1",
+    "port": 8081,
+    "context_size": 16384,
+    "flash_attention": true,
+    "parallel_slots": 1,
+    "reasoning": true,
+    "reasoning_budget_tokens": 256,
+    "reasoning_format": "deepseek",
+    "ui_enabled": false,
+    "health_at_start": "ok",
+    "argv_redacted": [
+      "$LLAMA_SERVER",
+      "-m",
+      "$MODEL_DIR/Qwen3-30B-A3B-Q4_K_M.gguf",
+      "--alias",
+      "Qwen3-30B-A3B-Q4_K_M",
+      "--host",
+      "127.0.0.1",
+      "--port",
+      "8081",
+      "--ctx-size",
+      "16384",
+      "--flash-attn",
+      "on",
+      "--reasoning",
+      "on",
+      "--reasoning-budget",
+      "256",
+      "--reasoning-format",
+      "deepseek",
+      "--no-ui",
+      "--parallel",
+      "1",
+      "--log-file",
+      "$RUNTIME_LOG"
+    ]
+  },
+  "harness_configuration": {
+    "source_sha256": "3f30f92808c4c496f2614c1ff5c04341305b8276747eb28bae10d03281ae59a4",
+    "provider": {
+      "base_url": "http://127.0.0.1:8081/v1",
+      "model": "Qwen3-30B-A3B-Q4_K_M",
+      "timeout_seconds": 600,
+      "temperature": 0.0,
+      "max_tokens": 2048
+    },
+    "agent": {
+      "max_steps": 20,
+      "max_runtime_seconds": 600,
+      "max_file_bytes": 65536,
+      "max_tool_output_chars": 12000,
+      "max_protocol_errors": 3,
+      "max_compactions": 8
+    },
+    "evolution": {
+      "engine": "gepa.optimize_anything",
+      "package_version": "0.1.4",
+      "max_metric_calls": 60,
+      "max_candidate_proposals": 6,
+      "seed": 7,
+      "min_train_delta": 0.01,
+      "min_holdout_delta": 0.01
+    }
+  }
+}

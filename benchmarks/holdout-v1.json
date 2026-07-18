@@ -1,0 +1,7 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_dataset.v1",
+  "cases": [
+    "cases/python-slugify",
+    "cases/python-port"
+  ]
+}

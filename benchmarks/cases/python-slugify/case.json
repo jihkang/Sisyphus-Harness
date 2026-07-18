@@ -1,0 +1,23 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_case.v1",
+  "id": "python-slugify",
+  "instruction": "Fix slugify(value) to return lowercase words separated by one hyphen. Remove punctuation, collapse repeated whitespace or hyphens, and strip separators from both ends.",
+  "acceptance_criteria": [
+    "slugify normalizes case and separators",
+    "slugify removes punctuation and empty edge separators"
+  ],
+  "workspace": "workspace",
+  "verifiers": [
+    {
+      "name": "normalization",
+      "criterion": "slugify normalizes case and separators",
+      "script": "verify_normalization.py"
+    },
+    {
+      "name": "punctuation-and-edges",
+      "criterion": "slugify removes punctuation and empty edge separators",
+      "script": "verify_punctuation.py"
+    }
+  ],
+  "timeout_seconds": 20
+}

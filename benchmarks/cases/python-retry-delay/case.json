@@ -1,0 +1,35 @@
+{
+  "schema_version": "sisyphus_harness.benchmark_case.v1",
+  "id": "python-retry-delay",
+  "instruction": "Fix retry_delay(attempt, base_delay) to return the integer exponential delay base_delay * 2 ** (attempt - 1), capped at 60. Accept only non-boolean integers. Raise ValueError when attempt is outside 1 through 8, base_delay is outside 1 through 30, or either input has an unsupported type.",
+  "acceptance_criteria": [
+    "retry_delay returns the correct uncapped exponential delay",
+    "retry_delay caps exponential delays at 60",
+    "retry_delay raises ValueError for booleans and non-integer inputs",
+    "retry_delay raises ValueError for attempt or base_delay values outside their ranges"
+  ],
+  "workspace": "workspace",
+  "verifiers": [
+    {
+      "name": "exponential-values",
+      "criterion": "retry_delay returns the correct uncapped exponential delay",
+      "script": "verify_exponential.py"
+    },
+    {
+      "name": "cap",
+      "criterion": "retry_delay caps exponential delays at 60",
+      "script": "verify_cap.py"
+    },
+    {
+      "name": "types",
+      "criterion": "retry_delay raises ValueError for booleans and non-integer inputs",
+      "script": "verify_types.py"
+    },
+    {
+      "name": "ranges",
+      "criterion": "retry_delay raises ValueError for attempt or base_delay values outside their ranges",
+      "script": "verify_ranges.py"
+    }
+  ],
+  "timeout_seconds": 20
+}
