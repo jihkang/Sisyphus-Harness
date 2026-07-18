@@ -52,15 +52,15 @@ flowchart LR
 
 ## 2. 논리적 아키텍처
 
-물리적으로는 `src/sisyphus_harness` 아래의 flat package이지만, 책임은 다음
-다섯 논리 계층으로 나뉜다. 이 표는 디렉터리 계층이 아니라 실제 의존 방향을
-설명한다.
+물리적으로는 `src/sisyphus_harness` 아래의 runtime 모듈과 `contracts`, `ports`
+하위 package로 구성된다. 책임은 다음 다섯 논리 계층으로 나뉘며, 이 표는
+디렉터리 모양보다 실제 의존 방향을 설명한다.
 
 | 논리 계층 | 모듈 | 책임 |
 | --- | --- | --- |
 | Interface | `cli.py` | 명령 파싱, 경로 해석, object 조립, JSON 출력과 exit code |
 | Application orchestration | `agent.py`, `worker.py`, `benchmarks.py`, `evolution.py` | 직접 실행 loop, leased job 실행, 격리 평가, 후보 최적화 및 판정 |
-| Contracts and policy | `models.py`, `config.py`, `protocol.py`, `compaction.py`, `policy.py` | 불변 dataclass, TOML validation, model decision schema, deterministic context reduction, 승인 정책 |
+| Contracts and policy | `contracts/`, `ports/`, `models.py`, `config.py`, `protocol.py`, `compaction.py`, `policy.py` | versioned dataclass, service port, TOML validation, model decision schema, deterministic context reduction, 승인 정책 |
 | Execution adapters | `provider.py`, `tools.py`, `verifier.py` | HTTP chat completion, bounded workspace 도구, subprocess 검증 |
 | Persistence and boundaries | `authority.py`, `database.py`, `queue.py`, `workspace.py`, `receipts.py`, `run_store.py` | Git common-dir authority, SQLite transaction, lease state, path/snapshot, atomic artifacts |
 
@@ -108,6 +108,11 @@ provider, verifier, artifact root, policy를 조립해 `LocalCodingAgent`를 만
 큐 실행에서는 `CodingWorker`가 동일한 조립을 job claim 이후 수행한다.
 benchmark와 evolution도 같은 `LocalCodingAgent`를 사용하므로 실제 코딩 loop가
 별도로 복제되지 않는다.
+
+향후 container 분리의 책임, workspace 전달, verification authority, queue와
+artifact 소유권은 [`docs/adr`](adr/)에 고정되어 있다. 기존 module import 경로는
+호환 alias이지만 새 코드의 wire type은 `contracts`에서 가져오고 concrete
+service 대신 `ports`에 의존한다.
 
 ### 2.3 CLI 진입점과 pipeline
 

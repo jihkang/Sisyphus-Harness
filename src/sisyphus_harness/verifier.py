@@ -11,7 +11,7 @@ import subprocess
 import time
 import uuid
 
-from .models import CommandResult, CommandSpec, VerificationReceipt
+from .contracts.verification import CommandResult, CommandSpec, VerificationReceipt
 from .receipts import write_json_atomic, write_text_atomic
 from .workspace import contained_path, snapshot_workspace
 

@@ -7,7 +7,7 @@ import sys
 from typing import Sequence
 import uuid
 
-from .agent import AgentTask, LocalCodingAgent
+from .agent import LocalCodingAgent
 from .authority import (
     agent_artifact_root,
     authority_database_path,
@@ -22,9 +22,10 @@ from .config import (
     load_harness_config,
     load_verification_config,
 )
+from .contracts.agent import AgentTask
+from .contracts.policy import CandidatePolicy
 from .database import Database
 from .evolution import (
-    CandidatePolicy,
     EvolutionRunner,
     GepaEvolutionEngine,
     evaluate_policy,
