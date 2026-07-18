@@ -69,6 +69,8 @@ class ArchitectureDependencyTests(unittest.TestCase):
     def test_runtime_dependency_direction_is_acyclic(self) -> None:
         forbidden = {
             "agent.py": {"benchmarks", "evolution", "policy", "queue", "worker"},
+            "benchmarks.py": {"agent", "verifier"},
+            "cli.py": {"agent", "verifier"},
             "verifier.py": {
                 "agent",
                 "benchmarks",
@@ -85,6 +87,7 @@ class ArchitectureDependencyTests(unittest.TestCase):
                 "verifier",
                 "worker",
             },
+            "worker.py": {"agent", "verifier"},
         }
         for filename, blocked in forbidden.items():
             path = PACKAGE_ROOT / filename

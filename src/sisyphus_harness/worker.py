@@ -6,7 +6,7 @@ from pathlib import Path
 import threading
 from typing import Any, Callable
 
-from .agent import LocalCodingAgent
+from .adapters.in_process import InProcessAgentRunFactory
 from .authority import (
     agent_artifact_root,
     authority_database_path,
@@ -20,7 +20,6 @@ from .models import JobRecord
 from .policy import PolicyRegistry
 from .provider import ChatProvider, OpenAICompatibleProvider
 from .queue import JobQueue, LeaseError
-from .verifier import BoundedVerifier
 from .workspace import contained_path
 
 
@@ -168,16 +167,16 @@ class CodingWorker:
                 config_path = contained_path(self.repo_root, payload.config)
                 config = load_harness_config(config_path)
                 policy = self._policy(config, payload.policy)
-                result = LocalCodingAgent(
+                result = InProcessAgentRunFactory(
                     provider=self.provider_factory(config.provider),
-                    verifier=BoundedVerifier(
-                        verification_artifact_root(self.repo_root)
-                    ),
-                    agent_artifact_root=agent_artifact_root(self.repo_root),
                     limits=config.limits,
-                    cadence=policy.cadence,
-                    strategy_prompt=policy.strategy_prompt,
                     protected_write_paths=(config_path,),
+                ).create(
+                    policy=policy,
+                    agent_artifact_root=agent_artifact_root(self.repo_root),
+                    verification_artifact_root=verification_artifact_root(
+                        self.repo_root
+                    ),
                 ).run(
                     self.repo_root,
                     AgentTask(payload.task, payload.criteria),

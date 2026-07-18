@@ -7,7 +7,10 @@ import sys
 from typing import Sequence
 import uuid
 
-from .agent import LocalCodingAgent
+from .adapters.in_process import (
+    InProcessAgentRunFactory,
+    InProcessVerificationAdapter,
+)
 from .authority import (
     agent_artifact_root,
     authority_database_path,
@@ -34,7 +37,6 @@ from .evolution import (
 from .policy import PolicyRegistry
 from .provider import OpenAICompatibleProvider
 from .queue import JobQueue
-from .verifier import BoundedVerifier
 from .worker import CodingWorker
 from .workspace import contained_path
 
@@ -236,10 +238,9 @@ def _main(argv: Sequence[str] | None) -> int:
                 verification = load_verification_config(config_path)
             except ConfigError:
                 raise harness_error
-        receipt = BoundedVerifier(verification_artifact_root(repo_root)).verify(
-            repo_root,
-            verification.selected_commands,
-        )
+        receipt = InProcessVerificationAdapter.from_artifact_root(
+            verification_artifact_root(repo_root)
+        ).verify(repo_root, verification.selected_commands)
         _print_json(receipt.to_dict())
         return 0 if receipt.passed else 1
     if args.command == "agent-run":
@@ -247,14 +248,14 @@ def _main(argv: Sequence[str] | None) -> int:
         config = load_harness_config(config_path)
         policy = _resolve_policy(repo_root, config, args.policy)
         provider = OpenAICompatibleProvider(config.provider)
-        result = LocalCodingAgent(
+        result = InProcessAgentRunFactory(
             provider=provider,
-            verifier=BoundedVerifier(verification_artifact_root(repo_root)),
-            agent_artifact_root=agent_artifact_root(repo_root),
             limits=config.limits,
-            cadence=policy.cadence,
-            strategy_prompt=policy.strategy_prompt,
             protected_write_paths=(config_path,),
+        ).create(
+            policy=policy,
+            agent_artifact_root=agent_artifact_root(repo_root),
+            verification_artifact_root=verification_artifact_root(repo_root),
         ).run(
             repo_root,
             AgentTask(args.task, tuple(args.criterion)),

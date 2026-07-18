@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from ..contracts.verification import CommandSpec, VerificationReceipt
 
 
+@runtime_checkable
 class VerificationPort(Protocol):
     def verify(
         self,

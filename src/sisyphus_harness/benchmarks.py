@@ -10,14 +10,14 @@ import sys
 import uuid
 from typing import Any
 
-from .agent import LocalCodingAgent
+from .adapters.in_process import InProcessAgentRunFactory
 from .config import AgentLimits
 from .contracts.agent import AgentTask
 from .contracts.evolution import EvaluationObservation
 from .contracts.policy import CandidatePolicy
 from .contracts.verification import CommandSpec
+from .ports.agent_run import AgentRunFactoryPort
 from .provider import ChatProvider
-from .verifier import BoundedVerifier
 from .workspace import contained_path
 
 
@@ -90,13 +90,24 @@ class CodingAgentBenchmarkEvaluator:
     def __init__(
         self,
         *,
-        provider: ChatProvider,
         limits: AgentLimits,
         rollout_root: Path,
+        provider: ChatProvider | None = None,
+        agent_factory: AgentRunFactoryPort | None = None,
     ) -> None:
+        if agent_factory is None:
+            if provider is None:
+                raise ValueError(
+                    "benchmark evaluator requires a provider or agent factory"
+                )
+            agent_factory = InProcessAgentRunFactory(
+                provider=provider,
+                limits=limits,
+            )
         self.provider = provider
         self.limits = limits
         self.rollout_root = rollout_root
+        self.agent_factory = agent_factory
         self.rollout_root.mkdir(parents=True, exist_ok=True)
 
     def __call__(
@@ -183,14 +194,10 @@ class CodingAgentBenchmarkEvaluator:
             ),
         )
         _initialize_git_repository(workspace)
-        verifier = BoundedVerifier(rollout_dir / "verification")
-        agent = LocalCodingAgent(
-            provider=self.provider,
-            verifier=verifier,
+        agent = self.agent_factory.create(
+            policy=policy,
             agent_artifact_root=rollout_dir / "agent",
-            limits=self.limits,
-            cadence=policy.cadence,
-            strategy_prompt=policy.strategy_prompt,
+            verification_artifact_root=rollout_dir / "verification",
         )
         result = agent.run(
             workspace,
