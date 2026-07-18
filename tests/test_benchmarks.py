@@ -28,6 +28,11 @@ class FakeProvider:
         return ChatResponse(content=self.responses.popleft())
 
 
+class StubAgentRunFactory:
+    def create(self, **kwargs):
+        raise AssertionError("factory should not run during evaluator construction")
+
+
 def action(tool: str, arguments: dict[str, object]) -> str:
     return json.dumps(
         {
@@ -81,6 +86,22 @@ class BenchmarkTests(unittest.TestCase):
             [verifier["criterion"] for verifier in train[1]["verifiers"]],
             train[1]["acceptance_criteria"],
         )
+
+    def test_evaluator_accepts_injected_agent_factory_without_provider(self) -> None:
+        factory = StubAgentRunFactory()
+        with tempfile.TemporaryDirectory() as directory:
+            evaluator = CodingAgentBenchmarkEvaluator(
+                limits=AgentLimits(),
+                rollout_root=Path(directory),
+                agent_factory=factory,
+            )
+            self.assertIs(evaluator.agent_factory, factory)
+
+            with self.assertRaisesRegex(ValueError, "provider or agent factory"):
+                CodingAgentBenchmarkEvaluator(
+                    limits=AgentLimits(),
+                    rollout_root=Path(directory) / "missing",
+                )
 
     def test_fixture_baselines_fail_hidden_verifiers(self) -> None:
         examples = load_benchmark_dataset(self.benchmark_root / "train.json")
