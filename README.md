@@ -207,5 +207,7 @@ coverage report -m
 
 The configured branch-coverage floor is 90%.
 
-See [Architecture](docs/architecture.md), [Evolution](docs/evolution.md), and
-[Security Policy](SECURITY.md) for the trust model and operating constraints.
+See [Architecture](docs/architecture.md),
+[Architecture and Data Pipeline](docs/architecture-and-data-pipeline.md),
+[Evolution](docs/evolution.md), and [Security Policy](SECURITY.md) for the trust
+model, data lineage, and operating constraints.
