@@ -76,6 +76,6 @@ class VerificationReceipt(WireModel):
             for command in self.commands
             for criterion in command.criteria
         ]
-        payload = super().to_dict()
+        payload = WireModel.to_dict(self)
         payload["criteria"] = criteria
         return payload

@@ -72,7 +72,7 @@ class CandidatePolicy(WireModel):
         }
 
     def to_dict(self) -> dict[str, object]:
-        payload = super().to_dict()
+        payload = WireModel.to_dict(self)
         payload["candidate_hash"] = self.candidate_hash
         return payload
 
