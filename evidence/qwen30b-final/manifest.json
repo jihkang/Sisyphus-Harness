@@ -395,8 +395,8 @@
   "bundled_artifacts": [
     {
       "path": "evidence/qwen30b-final/README.md",
-      "sha256": "cb4679f90618cc7f13763e42262209c16501f6472f264d409b4cd2ca2533b3d0",
-      "size_bytes": 4443
+      "sha256": "c1bce980b0320d166642ed16384378c33a4c389a87572b94dda9e15ef632541e",
+      "size_bytes": 4995
     },
     {
       "path": "evidence/qwen30b-final/artifacts/direct/change.diff",
@@ -529,6 +529,41 @@
       "size_bytes": 661
     },
     {
+      "path": "evidence/qwen30b-final/artifacts/post-merge-main/README.md",
+      "sha256": "7969ba60896b623c154bc6cf1448cc0436671a7289df0eddbac23605abe5449c",
+      "size_bytes": 574
+    },
+    {
+      "path": "evidence/qwen30b-final/artifacts/post-merge-main/change.diff",
+      "sha256": "a968dec9af4a4603ace24b5f918bd329650c3dde0dd98fc3d72a427151c163fb",
+      "size_bytes": 236
+    },
+    {
+      "path": "evidence/qwen30b-final/artifacts/post-merge-main/compaction-0001.json",
+      "sha256": "1261689b408d61dbe2c774a31631aaf4cbeb4a97d0b90c5d2d2906551802e578",
+      "size_bytes": 1040
+    },
+    {
+      "path": "evidence/qwen30b-final/artifacts/post-merge-main/merge-receipt.json",
+      "sha256": "2dff0bdf16b9c8b9dbb175f3dfe1cd301e71226adeab595936a0ecc439ecc2e1",
+      "size_bytes": 2417
+    },
+    {
+      "path": "evidence/qwen30b-final/artifacts/post-merge-main/metadata.json",
+      "sha256": "361c1cbfdb07885003b5a9eccbd16152fd4098e0af5effe195f1cc624e89f306",
+      "size_bytes": 1356
+    },
+    {
+      "path": "evidence/qwen30b-final/artifacts/post-merge-main/result.json",
+      "sha256": "f0417891986506d57d9eebf11b1c8b1f6243af42efe65e1cc1321f94c705a5c5",
+      "size_bytes": 917
+    },
+    {
+      "path": "evidence/qwen30b-final/artifacts/post-merge-main/verification-receipt.json",
+      "sha256": "f9bf744a37265408746200a408cbfe33eb3186a242a14a5538027d0a4a2b6cd4",
+      "size_bytes": 1656
+    },
+    {
       "path": "evidence/qwen30b-final/artifacts/queue/change.diff",
       "sha256": "a968dec9af4a4603ace24b5f918bd329650c3dde0dd98fc3d72a427151c163fb",
       "size_bytes": 236
@@ -585,8 +620,8 @@
     },
     {
       "path": "evidence/qwen30b-final/final-code-verification.json",
-      "sha256": "d6230b0f6c9f212d2c06d562a1b12d0dc07fe987e9749f9de008b19e69ba0b2c",
-      "size_bytes": 4045
+      "sha256": "581418ea0783409f007434fb7b0d24f5003e664b8c7a99123df0a79e08250ac2",
+      "size_bytes": 4660
     },
     {
       "path": "evidence/qwen30b-final/final-verification.json",
@@ -647,13 +682,19 @@
     "manifest_self_hashed": false,
     "verifier": "evidence/qwen30b-final/verify_manifest.py"
   },
-  "last_refreshed_at": "2026-07-18T05:39:20Z",
+  "last_refreshed_at": "2026-07-18T08:03:04Z",
   "amendments": [
     {
       "id": "final-code-review-20260718",
       "candidate_hash_changed": false,
       "evidence_path": "evidence/qwen30b-final/artifacts/final-code-review",
       "reason": "Post-review guard-rail changes and final-code real-model revalidation"
+    },
+    {
+      "id": "post-merge-main-20260718",
+      "candidate_hash_changed": false,
+      "evidence_path": "evidence/qwen30b-final/artifacts/post-merge-main",
+      "reason": "PR/CI/merge receipt and real-model smoke from synchronized merged main"
     }
   ]
 }

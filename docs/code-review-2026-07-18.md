@@ -187,7 +187,6 @@ coupling without reducing meaningful complexity.
 - no sandbox escape test exists because sandboxing is not implemented;
 - no large-repository benchmark measures snapshot and search scaling;
 - no double-build test enforces byte-for-byte package reproducibility;
-- GitHub-hosted CI remains unobserved until the new remote is created.
 
 ## Publication Gate
 
@@ -215,3 +214,9 @@ A separate clean clone received only the intended publishable files. After
 staging them, cached-diff, pull-request base-diff, and pushed-commit whitespace
 checks passed. The same clone completed all 139 core tests, retained 91.6
 percent coverage, and verified all 119 evidence-manifest entries.
+
+GitHub-hosted CI was subsequently observed on pull request #1. Python 3.11,
+Python 3.14, installed GEPA, and package/evidence jobs all passed before squash
+merge commit `47539e0d69a70256fcb0f0bb6b96176b67dfa99d`. A fresh Qwen3 30.5B direct
+smoke from synchronized merged `main` then completed in 3 steps with one
+automatic compaction and one passing verification.

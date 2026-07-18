@@ -1,0 +1,17 @@
+{
+  "artifact_path": "$POST_MERGE_MAIN_WORKSPACE/.git/sisyphus-harness/artifacts/agent/qwen30b-post-merge-main-direct-20260718",
+  "changed_paths": [
+    "arithmetic.py"
+  ],
+  "compactions": 1,
+  "finished_at": "2026-07-18T08:00:15.335067Z",
+  "reason": "final verification passed",
+  "run_id": "qwen30b-post-merge-main-direct-20260718",
+  "schema_version": "sisyphus_harness.agent_run.v1",
+  "steps": 3,
+  "success": true,
+  "summary": "The add function was fixed to return the arithmetic sum by changing 'return left - right' to 'return left + right' in arithmetic.py. This satisfies the acceptance criterion as the function now correctly handles positive, negative, and zero values.",
+  "verifications": 1,
+  "workspace_state_after": "sha256:563ef4a97b6383ff61a9b2b7fdbf79c367f702513bb7d80cc168618ae94598da",
+  "workspace_state_before": "sha256:b3b752c97a2f38393cc2ff2bc55e497e263e5d4393effdab4186ae81bb5ed80c"
+}

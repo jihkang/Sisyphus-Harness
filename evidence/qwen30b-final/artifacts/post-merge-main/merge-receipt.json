@@ -1,0 +1,67 @@
+{
+  "schema_version": "sisyphus_harness.github_merge_receipt.v1",
+  "repository": "jihkang/Sisyphus-Harness",
+  "pull_request": {
+    "number": 1,
+    "title": "Add evolved local coding agent harness",
+    "url": "https://github.com/jihkang/Sisyphus-Harness/pull/1",
+    "base_branch": "main",
+    "head_branch": "codex/qwen30b-local-agent-harness",
+    "head_sha": "7da2e5a526d4428ccfba2750caff1d1ab49d9903",
+    "merge_method": "squash",
+    "merge_commit_sha": "47539e0d69a70256fcb0f0bb6b96176b67dfa99d",
+    "merged_at": "2026-07-18T07:58:32Z",
+    "merged_by": "jihkang",
+    "changed_files": 153,
+    "additions": 16373,
+    "deletions": 0
+  },
+  "continuous_integration": {
+    "workflow": "ci",
+    "run_id": 29636638715,
+    "url": "https://github.com/jihkang/Sisyphus-Harness/actions/runs/29636638715",
+    "conclusion": "success",
+    "head_sha": "7da2e5a526d4428ccfba2750caff1d1ab49d9903",
+    "jobs": [
+      {
+        "name": "core (3.11)",
+        "conclusion": "success",
+        "url": "https://github.com/jihkang/Sisyphus-Harness/actions/runs/29636638715/job/88060031367"
+      },
+      {
+        "name": "core (3.14)",
+        "conclusion": "success",
+        "url": "https://github.com/jihkang/Sisyphus-Harness/actions/runs/29636638715/job/88060031391"
+      },
+      {
+        "name": "evolution",
+        "conclusion": "success",
+        "url": "https://github.com/jihkang/Sisyphus-Harness/actions/runs/29636638715/job/88060031355"
+      },
+      {
+        "name": "package-and-evidence",
+        "conclusion": "success",
+        "url": "https://github.com/jihkang/Sisyphus-Harness/actions/runs/29636638715/job/88060031384"
+      }
+    ]
+  },
+  "synchronized_main": {
+    "commit_sha": "47539e0d69a70256fcb0f0bb6b96176b67dfa99d",
+    "tree_sha": "330e2b1505d5991fb25d81e9ca28b546b0c17383",
+    "matches_origin_main": true
+  },
+  "post_merge_run": {
+    "run_id": "qwen30b-post-merge-main-direct-20260718",
+    "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
+    "success": true,
+    "reason": "final verification passed",
+    "steps": 3,
+    "compactions": 1,
+    "verifications": 1,
+    "changed_paths": [
+      "arithmetic.py"
+    ],
+    "workspace_state_before": "sha256:b3b752c97a2f38393cc2ff2bc55e497e263e5d4393effdab4186ae81bb5ed80c",
+    "workspace_state_after": "sha256:563ef4a97b6383ff61a9b2b7fdbf79c367f702513bb7d80cc168618ae94598da"
+  }
+}

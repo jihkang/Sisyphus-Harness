@@ -1,6 +1,6 @@
 {
   "schema_version": "sisyphus_harness.final_code_verification.v1",
-  "verified_at": "2026-07-18T05:39:20Z",
+  "verified_at": "2026-07-18T08:03:04Z",
   "basis": "post-code-review source and unchanged signed active policy",
   "checks": [
     {
@@ -104,7 +104,7 @@
       "name": "evidence-manifest",
       "command": "uv run --frozen python evidence/qwen30b-final/verify_manifest.py",
       "passed": true,
-      "checked_files": 119
+      "checked_files": 126
     },
     {
       "name": "clean-copy-staged-diff",
@@ -118,6 +118,25 @@
       "tests_run": 139,
       "tests_skipped_without_evolution_extra": 1,
       "actual_percent": 91.56662665066027
+    },
+    {
+      "name": "github-pull-request-ci-and-merge",
+      "passed": true,
+      "pull_request": "https://github.com/jihkang/Sisyphus-Harness/pull/1",
+      "ci_run": "https://github.com/jihkang/Sisyphus-Harness/actions/runs/29636638715",
+      "successful_jobs": 4,
+      "merge_commit_sha": "47539e0d69a70256fcb0f0bb6b96176b67dfa99d"
+    },
+    {
+      "name": "post-merge-main-real-model-smoke",
+      "passed": true,
+      "run_id": "qwen30b-post-merge-main-direct-20260718",
+      "steps": 3,
+      "compactions": 1,
+      "verifications": 1,
+      "changed_paths": [
+        "arithmetic.py"
+      ]
     }
   ],
   "all_checks_passed": true
