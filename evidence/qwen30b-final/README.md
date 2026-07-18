@@ -78,6 +78,18 @@ An earlier two-file direct attempt is retained under `artifacts/rejected`. It
 compacted three times but failed closed at the stagnation threshold and is not
 counted as successful evidence.
 
+## Publication And Post-Merge Run
+
+[Pull request #1](https://github.com/jihkang/Sisyphus-Harness/pull/1) passed
+Python 3.11, Python 3.14, installed GEPA, package, and evidence CI before it was
+squash-merged as
+`47539e0d69a70256fcb0f0bb6b96176b67dfa99d`. Local `main` was then fetched and
+fast-forwarded to the same commit.
+
+A fresh Qwen3 30.5B direct smoke from that synchronized `main` completed in 3
+steps with 1 automatic compaction and 1 passing verification. The merge/CI
+receipt and redacted run artifacts are under `artifacts/post-merge-main`.
+
 ## Package Verification
 
 - 139 tests passed after the code-review fixes.

@@ -214,17 +214,17 @@ developer checkout instead of the installed wheel must be corrected.
 - [x] Copy the project from `/tmp/Sisyphus-Harness` to the durable
   `$HARNESS_WORKSPACE`, excluding virtualenvs, build products, caches, and
   model files.
-- [ ] Initialize or create the GitHub repository if it does not exist.
+- [x] Initialize or create the GitHub repository if it does not exist.
 - [x] Establish a minimal `main` baseline commit when required for PR review.
-- [ ] Before creating the feature branch, run `git switch main`,
+- [x] Before creating the feature branch, run `git switch main`,
   `git fetch origin main`, and `git pull --ff-only`.
-- [ ] Create a `codex/` feature branch.
-- [ ] Stage only scoped harness files and evidence.
-- [ ] Commit, push, and open a ready PR.
-- [ ] Wait for every required CI check and inspect failures before changing code.
-- [ ] Merge only after CI is green.
-- [ ] Switch to `main`, fetch, and fast-forward pull after merge.
-- [ ] Record the merged commit and PR URL in the evidence report.
+- [x] Create a `codex/` feature branch.
+- [x] Stage only scoped harness files and evidence.
+- [x] Commit, push, and open a ready PR.
+- [x] Wait for every required CI check and inspect failures before changing code.
+- [x] Merge only after CI is green.
+- [x] Switch to `main`, fetch, and fast-forward pull after merge.
+- [x] Record the merged commit and PR URL in the evidence report.
 
 Gate: the remote default branch contains the merged commit and the local main
 matches `origin/main`.
