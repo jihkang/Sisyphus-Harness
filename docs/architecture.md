@@ -64,7 +64,7 @@ bounded model decision -> contained file tool -> step receipt
       +---------------- repeated ------------+
       |
       v
-operator verifier argv -> immutable receipt -> result
+operator verifier argv -> atomically persisted receipt -> result
       |
       v
 offline benchmark/evolution -> proposed candidate

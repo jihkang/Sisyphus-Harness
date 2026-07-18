@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 from typing import Any
 
+from .contracts.codec import WireModel
 from .workspace import PathBoundaryError, contained_path
 
 
@@ -17,18 +18,10 @@ class ToolError(RuntimeError):
 
 
 @dataclass(frozen=True, slots=True)
-class ToolOutcome:
+class ToolOutcome(WireModel):
     tool: str
     output: dict[str, object]
     mutated: bool
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "tool": self.tool,
-            "output": self.output,
-            "mutated": self.mutated,
-        }
-
 
 class WorkspaceTools:
     def __init__(

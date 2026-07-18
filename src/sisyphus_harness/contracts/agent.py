@@ -2,9 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .codec import WireModel
+
 
 @dataclass(frozen=True, slots=True)
-class AgentTask:
+class AgentTask(WireModel):
     instruction: str
     acceptance_criteria: tuple[str, ...]
 
@@ -22,7 +24,7 @@ class AgentTask:
 
 
 @dataclass(frozen=True, slots=True)
-class AgentResult:
+class AgentResult(WireModel):
     run_id: str
     success: bool
     reason: str
@@ -35,19 +37,3 @@ class AgentResult:
     artifact_path: str
     summary: str | None = None
     schema_version: str = "sisyphus_harness.agent_run.v1"
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "schema_version": self.schema_version,
-            "run_id": self.run_id,
-            "success": self.success,
-            "reason": self.reason,
-            "steps": self.steps,
-            "compactions": self.compactions,
-            "verifications": self.verifications,
-            "workspace_state_before": self.workspace_state_before,
-            "workspace_state_after": self.workspace_state_after,
-            "changed_paths": list(self.changed_paths),
-            "artifact_path": self.artifact_path,
-            "summary": self.summary,
-        }

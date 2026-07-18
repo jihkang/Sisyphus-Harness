@@ -2,9 +2,11 @@
 
 이 문서는 Sisyphus Harness의 실제 구현을 기준으로 논리적 아키텍처,
 신뢰 경계, 런타임 데이터 모델, 영속화 구조, 직접 실행·큐·benchmark·evolution
-파이프라인을 하나의 관점으로 정리한다. 분석 기준은 런타임 소스가 마지막으로
-변경된 `main` 커밋 `47539e0` 이후의 코드이며, 문서 및 evidence 변경은 동작에
-영향을 주지 않는다.
+파이프라인을 하나의 관점으로 정리한다. 현재 구현과 ADR에 기록된 목표 구조는
+명시적으로 구분한다. 마지막 코드 대조 결과와 미구현 항목은
+[`architecture-conformance-review-2026-07-18.md`](architecture-conformance-review-2026-07-18.md)에
+고정한다. 특정 commit을 이 문서의 영구 기준으로 삼지 않으며, runtime code와
+회귀 테스트가 동작의 최종 권위다.
 
 기존 [`architecture.md`](architecture.md)는 짧은 개요이고,
 [`evolution.md`](evolution.md)는 evolution 정책만 다룬다. 이 문서는 운영자가
@@ -52,62 +54,71 @@ flowchart LR
 
 ## 2. 논리적 아키텍처
 
-물리적으로는 `src/sisyphus_harness` 아래의 runtime 모듈과 `contracts`, `ports`
-하위 package로 구성된다. 책임은 다음 다섯 논리 계층으로 나뉘며, 이 표는
+물리적으로는 `src/sisyphus_harness` 아래의 runtime 모듈과 `contracts`, `ports`,
+`adapters`, `infra` 하위 package로 구성된다. 책임은 다음 다섯 논리 계층으로 나뉘며, 이 표는
 디렉터리 모양보다 실제 의존 방향을 설명한다.
 
 | 논리 계층 | 모듈 | 책임 |
 | --- | --- | --- |
 | Interface | `cli.py` | 명령 파싱, 경로 해석, object 조립, JSON 출력과 exit code |
 | Application orchestration | `agent.py`, `worker.py`, `benchmarks.py`, `evolution.py` | 직접 실행 loop, leased job 실행, 격리 평가, 후보 최적화 및 판정 |
-| Contracts and policy | `contracts/`, `ports/`, `models.py`, `config.py`, `protocol.py`, `compaction.py`, `policy.py` | versioned dataclass, service port, TOML validation, model decision schema, deterministic context reduction, 승인 정책 |
-| Execution adapters | `adapters/`, `provider.py`, `tools.py`, `verifier.py` | in-process service port, HTTP chat completion, bounded workspace 도구, subprocess 검증 |
-| Persistence and boundaries | `authority.py`, `database.py`, `queue.py`, `workspace.py`, `receipts.py`, `run_store.py` | Git common-dir authority, SQLite transaction, lease state, path/snapshot, atomic artifacts |
+| Contracts and ports | `contracts/`, `ports/`, `config.py`, `protocol.py`, `compaction.py`, `models.py` | versioned wire dataclass, service port, TOML validation, model decision schema, deterministic context reduction, legacy type alias |
+| Execution adapters | `adapters/`, `provider.py`, `tools.py`, `verifier.py` | in-process service 조립, HTTP chat completion, bounded workspace 도구, subprocess 검증 |
+| Infrastructure and authority | `infra/`, `authority.py`, `database.py`, `queue.py`, `workspace.py`, `receipts.py`, `run_store.py`, `policy.py` | workspace bundle primitive, Git common-dir authority, SQLite transaction, lease state, path/snapshot, atomic artifact, 승인·활성화 영속화 |
 
 ### 2.1 모듈 의존 구조
 
 ```mermaid
 flowchart TD
-    CLI["cli.py"] --> Agent["agent.py"]
+    CLI["cli.py"] --> Adapter["adapters/in_process.py"]
     CLI --> Worker["worker.py"]
     CLI --> Bench["benchmarks.py"]
     CLI --> Evolve["evolution.py"]
     CLI --> Queue["queue.py"]
     CLI --> Policy["policy.py"]
 
-    Worker --> Agent
+    Worker --> Adapter
     Worker --> Queue
     Worker --> Policy
-    Bench --> Agent
-    Bench --> Evolve
+    Bench --> AgentFactory["AgentRunFactoryPort"]
+    Bench --> Adapter
+    Evolve --> Contracts["contracts/"]
     Evolve --> Provider["provider.py"]
+    Evolve --> Receipts["receipts.py"]
     Policy --> Evolve
+
+    Adapter --> Agent["agent.py"]
+    Adapter --> Verifier["verifier.py"]
+    AgentFactory --> AgentPort["AgentRunPort"]
+    Adapter -. implements .-> AgentFactory
+    Adapter -. implements .-> AgentPort
 
     Agent --> Provider
     Agent --> Protocol["protocol.py"]
     Agent --> Tools["tools.py"]
-    Agent --> Verifier["verifier.py"]
+    Agent --> VerificationPort["VerificationPort"]
     Agent --> Compact["compaction.py"]
     Agent --> RunStore["run_store.py"]
 
     Queue --> DB["database.py"]
     Queue --> Models["models.py"]
-    Verifier --> Models
+    Verifier --> VerificationContracts["contracts/verification.py"]
     Verifier --> Workspace["workspace.py"]
     Tools --> Workspace
-    RunStore --> Receipts["receipts.py"]
+    RunStore --> Receipts
     Verifier --> Receipts
-    Evolve --> Receipts
     Policy --> Receipts
 ```
 
 ### 2.2 주요 조립 지점
 
-`cli._main()`이 command별 composition root다. 직접 실행에서는 config,
-provider, verifier, artifact root, policy를 조립해 `LocalCodingAgent`를 만든다.
-큐 실행에서는 `CodingWorker`가 동일한 조립을 job claim 이후 수행한다.
-benchmark와 evolution도 같은 `LocalCodingAgent`를 사용하므로 실제 코딩 loop가
-별도로 복제되지 않는다.
+`cli._main()`이 command별 composition root다. 직접 실행에서는 config, provider,
+artifact root, policy를 `InProcessAgentRunFactory`에 전달하며 factory가
+`LocalCodingAgent`와 `BoundedVerifier` adapter를 조립한다. 큐 실행에서는
+`CodingWorker`가 동일한 factory를 job claim 이후 사용한다. benchmark는
+`AgentRunFactoryPort`를 받고 기본값으로 같은 in-process factory를 사용한다.
+evolution은 benchmark evaluator를 호출하므로 실제 coding loop를 복제하거나
+`LocalCodingAgent`를 직접 import하지 않는다.
 
 향후 container 분리의 책임, workspace 전달, verification authority, queue와
 artifact 소유권은 [`docs/adr`](adr/)에 고정되어 있다. 기존 module import 경로는
@@ -115,7 +126,28 @@ artifact 소유권은 [`docs/adr`](adr/)에 고정되어 있다. 기존 module i
 service 대신 `ports`에 의존한다. 현재 CLI, worker, benchmark 조립은
 `adapters/in_process.py`를 통과하며 이후 transport adapter와 교체할 수 있다.
 
-### 2.3 CLI 진입점과 pipeline
+### 2.3 현재 구현과 ADR 목표 상태
+
+현재 runtime은 **단일 Python process와 host path 기반 in-process 실행**이다.
+`VerificationPort`, `AgentRunPort`, `AgentRunFactoryPort`와 in-process adapter는
+구현되어 있다. `infra/workspace_bundle.py`에는 content-addressed bundle 생성과
+안전한 materialization primitive가 있지만 Agent와 Verifier 요청에는 아직 연결되지
+않았다. materialized tree에는 `.git` metadata가 없고 현재 `BoundedVerifier`는 유효한
+Git HEAD를 요구하므로, 연결 시에는 bundle tree hash 기반 mutation checker 또는
+ephemeral Git 초기화 adapter가 추가로 필요하다.
+
+다음 항목은 accepted ADR의 **목표 상태이며 현재 runtime 동작이 아니다**.
+
+- 독립 Agent, Verifier, Evolve, Control service와 transport adapter
+- bundle reference만 받는 ephemeral Verifier workspace
+- Evolve가 검증 evidence를 직접 읽는 `VerificationEvidencePort`
+- non-root, no-network, read-only root filesystem의 verifier container
+- Control 단독 queue/policy 소유권과 config/policy digest snapshot
+
+따라서 ADR의 service diagram을 현재 배포 구조로 해석하면 안 된다. 단계별 구현
+상태와 위험은 conformance review 문서를 따른다.
+
+### 2.4 CLI 진입점과 pipeline
 
 | 명령 | 시작하는 동작 | 주요 영속화 |
 | --- | --- | --- |
@@ -151,8 +183,9 @@ service 대신 `ports`에 의존한다. 현재 CLI, worker, benchmark 조립은
 | 모델 행동 | `AgentDecision` | `parse_agent_decision()` | workspace tool 또는 final verifier |
 | 도구 결과 | `ToolOutcome` | `WorkspaceTools.execute()` | agent event와 다음 prompt |
 | workspace 상태 | `WorkspaceSnapshot` | `snapshot_workspace()` | mutation 대조, stagnation, receipt |
+| workspace bundle reference | `WorkspaceBundleRef` | `FilesystemWorkspaceBundleStore` | 현재는 bundle test와 materializer만 사용 |
 | 검증 명세 | `CommandSpec` | TOML parser 또는 benchmark case | `BoundedVerifier` |
-| 검증 결과 | `VerificationReceipt` | `BoundedVerifier.verify()` | agent, benchmark, operator |
+| 검증 결과 | `VerificationReceipt` | `BoundedVerifier.verify()` | agent, operator; benchmark는 현재 agent step projection을 간접 소비 |
 | agent 결과 | `AgentResult` | `LocalCodingAgent._finish()` | CLI, queue terminal result, benchmark scorer |
 | queue row | `JobRecord` | `JobQueue` | CLI, worker |
 | 정책 후보 | `CandidatePolicy` | config 또는 GEPA | benchmark, approval, active run |
@@ -160,10 +193,15 @@ service 대신 `ports`에 의존한다. 현재 CLI, worker, benchmark 조립은
 | 평가 집계 | `EvaluationAggregate` | evolution evaluator | baseline/candidate 비교 |
 | evolution 결과 | `EvolutionResult` | `EvolutionRunner` | operator approval |
 
-모든 외부 입력 parser는 unknown field를 거부한다. config 숫자는 finite 여부와
-범위를 검사하고, agent criterion은 선택된 verifier command의 criterion 문자열과
-정확히 일치해야 한다. 이 문자열 binding이 task 성공과 무관한 검증 명령이
-성공을 부여하는 것을 막는다.
+경계가 고정된 입력 schema인 TOML config, typed coding job, benchmark dataset/case,
+model decision, candidate policy, workspace bundle reference는 unknown field를
+거부한다. 반면 low-level queue payload는 의도적으로 임의 object를 허용하고,
+OpenAI-compatible response envelope는 필요한 field만 읽으며 추가 field를 허용한다.
+policy approval/active artifact의 최상위 object도 현재는 signature와 필수 binding을
+검사하지만 unknown field를 거부하지 않는다. config 숫자는 finite 여부와 범위를
+검사하고, agent criterion은 선택된 verifier command의 criterion 문자열과 정확히
+일치해야 한다. 이 문자열 binding이 task 성공과 무관한 검증 명령이 성공을
+부여하는 것을 막는다.
 
 ## 4. Authority와 저장 구조
 
@@ -414,6 +452,11 @@ receipt에는 argv, criterion, duration, exit code, timeout, executable path와
 포함된다. script가 `argv[1]`에 있는 경우 그 script hash까지 자동으로 provenance에
 포함하지는 않는다.
 
+receipt는 중복되지 않는 run directory에 원자적으로 저장되지만 암호학적으로
+서명되거나 append-only storage로 보호되지는 않는다. 같은 local OS 권한을 가진
+사용자는 저장 후 파일을 바꿀 수 있으므로 현재 구현을 기술적으로 immutable하다고
+표현하지 않는다.
+
 Verifier는 model tool은 아니지만 model이 변경한 코드를 operator 계정으로 실행할
 수 있다. `PYTHONDONTWRITEBYTECODE=1`과 mutation detection은 제공되지만 filesystem,
 process, network sandbox는 제공하지 않는다.
@@ -453,8 +496,8 @@ stateDiagram-v2
 
 worker는 가장 오래된 queued job 또는 만료된 running job 하나를 transaction
 안에서 claim한다. `LeaseKeeper` thread는 lease 시간의 1/3 주기로 heartbeat하고,
-worker는 payload를 strict parsing한 뒤 config와 policy를 해석해 직접 실행과 같은
-`LocalCodingAgent`를 구동한다.
+worker는 payload를 strict parsing한 뒤 config와 policy를 해석해
+`InProcessAgentRunFactory`를 통해 직접 실행과 같은 agent loop를 구동한다.
 
 agent가 성공하면 `completed`, 실패하면 `failed`로 terminal transition한다.
 exception도 구조화된 실패 result로 저장한다. terminal update는 현재 owner이며
@@ -477,9 +520,12 @@ flowchart LR
     Dataset["dataset JSON"] --> Cases["strict case loader"]
     Cases --> Copy["copy visible workspace"]
     Copy --> Git["deterministic fresh Git commit"]
-    Git --> Agent["LocalCodingAgent rollout"]
+    Git --> Agent["AgentRunPort rollout"]
     Hidden["external hidden verifier scripts"] --> Agent
-    Agent --> Trace["agent + verification receipts"]
+    Agent --> VerifyArtifacts["verification artifacts"]
+    Agent --> Trace["agent step/result artifacts"]
+    VerifyArtifacts --> Projection["verification projection in agent step"]
+    Projection --> Trace
     Trace --> Score["criterion and efficiency scoring"]
     Score --> Obs["EvaluationObservation"]
     Obs --> Aggregate["EvaluationAggregate"]
@@ -503,6 +549,12 @@ score = 0.70 * criterion_pass_rate
 - `success`: final agent success 여부
 - `step_efficiency`: max step 대비 적게 사용한 정도
 - `compaction_efficiency`: max compaction 대비 적게 사용한 정도
+
+현재 `_latest_criterion_pass_rate()`는 Verifier의 `receipt.json`을 직접 검증해
+읽지 않고 agent `steps/*.json`의 verification event projection을 다시 파싱한다.
+따라서 문서와 ADR이 목표로 하는 "Verifier evidence가 단일 scoring 권위"는 아직
+완료되지 않았다. transport 분리 전에 `VerificationEvidencePort` 또는 digest로
+검증된 receipt reader를 도입해야 한다.
 
 verifier mutation이나 tool mutation mismatch는 hard-gate failure다. evaluator
 exception은 score 0, success false, hard gate false인 observation으로 변환되어
@@ -572,7 +624,7 @@ sequenceDiagram
     Operator->>Registry: policy-approve(evolution-id, note)
     Registry->>Result: require accepted + proposed
     Registry->>Registry: recompute candidate hash
-    Registry->>Key: load or create 32-byte key, mode 0600
+    Registry->>Key: load existing key or create 32-byte key with mode 0600
     Registry-->>Operator: signed approval receipt
     Operator->>Registry: policy-activate(result, approval)
     Registry->>Registry: verify HMAC, evolution ID, candidate hash
@@ -587,6 +639,9 @@ HMAC-SHA256으로 묶는다. activation은 승인 signature와 candidate binding
 
 이 HMAC은 같은 local authority root 안의 무결성 경계다. 외부 KMS, hardware key,
 조직 identity attestation을 제공하지 않으므로 외부 신원 증명으로 해석하면 안 된다.
+새 key는 mode `0600`으로 생성되지만 기존 `authority.key`의 길이와 mode는 현재
+재검증하지 않는다. approval/active 최상위 schema 역시 unknown field를 거부하지
+않으며, HMAC은 해당 추가 field를 포함한 전체 payload의 변조만 탐지한다.
 
 ## 12. End-to-end 데이터 lineage
 
@@ -598,7 +653,8 @@ HMAC-SHA256으로 묶는다. activation은 승인 signature와 candidate binding
 | Agent prompt | task, policy, events, snapshots | cadence, compaction, observation | `ChatMessage[]` | step receipt에 복제 | provider |
 | Model completion | OpenAI-compatible JSON | 16 MiB ceiling, JSON decision parse | `AgentDecision` | raw response in step receipt | tools/verifier |
 | Tool execution | decision arguments | containment, hash, size, symlink, atomic write | `ToolOutcome` | step receipt | next prompt |
-| Verification | `CommandSpec[]`, workspace | process timeout, exit, mutation check | `VerificationReceipt` | verification artifacts | agent/benchmark |
+| Workspace bundle (부분 구현) | current Git tree | tracked/unignored enumeration, tar path/type/digest validation | `WorkspaceBundleRef` | caller-provided filesystem store | 아직 runtime service consumer 없음 |
+| Verification | `CommandSpec[]`, workspace | process timeout, exit, mutation check | `VerificationReceipt` | verification artifacts | agent/operator; benchmark는 agent projection 사용 |
 | Agent finish | initial/final snapshot, receipts | success/failure rule | `AgentResult` | agent `result.json` | CLI/queue/scorer |
 | Benchmark | case + candidate | isolated rollout, score formula | `EvaluationObservation` | rollout artifacts | aggregate/GEPA |
 | Evolution | seed, train, holdout | baseline, GEPA, independent rerun, gates | `EvolutionResult` | evolution artifacts | operator approval |
@@ -622,6 +678,10 @@ HMAC-SHA256으로 묶는다. activation은 승인 signature와 candidate binding
 | 반복/진동 | decision fingerprint와 state/criterion cycle limit |
 | evolution의 안전 제어 약화 | candidate surface를 strategy/cadence로 제한 |
 | 승인 후 candidate 변조 | candidate content hash와 HMAC binding |
+
+현재 표의 제어는 local process와 filesystem 신뢰 경계 안에서만 성립한다. 특히
+verification artifact 자체의 post-write mutation과 benchmark의 agent projection
+재해석은 아직 별도 digest/authority 검증으로 막지 않는다.
 
 `WorkspaceSnapshot.state_hash`는 HEAD commit, unstaged binary diff, staged binary
 diff, untracked path와 file hash 또는 symlink target을 순서대로 SHA-256에 넣는다.
@@ -678,10 +738,12 @@ run artifacts를 별도로 묶어야 한다.
 | 변경하려는 동작 | 먼저 볼 코드 | 관련 회귀 테스트 |
 | --- | --- | --- |
 | CLI 명령 또는 JSON exit contract | `cli.py` | `tests/test_cli.py` |
+| service 조립과 dependency direction | `adapters/in_process.py`, `ports/` | `tests/test_in_process_adapters.py`, `tests/test_architecture_dependencies.py` |
 | task/criterion와 loop 종료 | `agent.py` | `tests/test_agent.py` |
 | model JSON schema | `protocol.py`, `provider.py` | `tests/test_protocol.py`, `tests/test_provider.py` |
 | file boundary와 mutation | `tools.py`, `workspace.py` | `tests/test_tools.py`, `tests/test_workspace.py` |
-| command 실행과 receipt | `verifier.py`, `models.py` | `tests/test_verifier.py` |
+| workspace bundle 생성/materialization | `infra/workspace_bundle.py`, `contracts/workspace.py` | `tests/test_workspace_bundle.py` |
+| command 실행과 receipt | `verifier.py`, `contracts/verification.py` | `tests/test_verifier.py` |
 | queue transition과 concurrency | `database.py`, `queue.py`, `worker.py` | `tests/test_database.py`, `tests/test_queue.py`, `tests/test_worker.py` |
 | benchmark fixture와 scoring | `benchmarks.py` | `tests/test_benchmarks.py` |
 | candidate schema와 acceptance gate | `evolution.py` | `tests/test_evolution.py`, `tests/test_gepa_integration.py` |
@@ -692,10 +754,13 @@ run artifacts를 별도로 묶어야 한다.
 
 Sisyphus Harness의 중심 데이터 흐름은 `operator intent → strict config/task →
 bounded model decision → contained workspace mutation → operator verification →
-immutable receipt`이다. queue는 이 흐름 앞뒤에 transactional lease를 추가하고,
+atomically persisted receipt`이다. queue는 이 흐름 앞뒤에 transactional lease를 추가하고,
 benchmark는 이를 격리 fixture에서 점수화하며, evolution은 실제 rollout
 observation으로 strategy와 cadence만 개선한다. 개선 후보는 independent holdout을
 통과해도 자동 배포되지 않고 local operator HMAC approval을 거쳐야 active가 된다.
 
 이 구조에서 신뢰의 최종 기준은 model의 설명이 아니라 workspace state hash,
-verification receipt, candidate hash, queue transaction, approval signature다.
+verification receipt, candidate hash, queue transaction, approval signature다. 다만
+현재 benchmark는 receipt 자체가 아니라 agent가 복제한 projection을 사용하므로,
+Verifier 단일 권위라는 목표를 완성하려면 evidence port와 receipt digest 검증이
+추가로 필요하다.
