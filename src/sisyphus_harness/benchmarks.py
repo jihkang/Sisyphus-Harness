@@ -10,10 +10,12 @@ import sys
 import uuid
 from typing import Any
 
-from .agent import AgentTask, LocalCodingAgent
+from .agent import LocalCodingAgent
 from .config import AgentLimits
-from .evolution import CandidatePolicy, EvaluationObservation
-from .models import CommandSpec
+from .contracts.agent import AgentTask
+from .contracts.evolution import EvaluationObservation
+from .contracts.policy import CandidatePolicy
+from .contracts.verification import CommandSpec
 from .provider import ChatProvider
 from .verifier import BoundedVerifier
 from .workspace import contained_path

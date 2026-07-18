@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-import hashlib
 import json
 import math
 from pathlib import Path
 import re
 from typing import Any, Callable, Protocol
 
-from .config import CadencePolicy
+from .contracts.errors import CandidateError
+from .contracts.evolution import (
+    EvaluationAggregate,
+    EvaluationObservation,
+    EvolutionResult,
+)
+from .contracts.policy import CandidatePolicy
 from .provider import ChatMessage, ChatProvider
 from .receipts import write_json_atomic
 from .workspace import contained_path
@@ -18,195 +23,10 @@ class EvolutionError(RuntimeError):
     pass
 
 
-class CandidateError(ValueError):
-    pass
-
-
-@dataclass(frozen=True, slots=True)
-class CandidatePolicy:
-    strategy_prompt: str
-    cadence: CadencePolicy
-    schema_version: str = "sisyphus_harness.policy_candidate.v1"
-
-    def __post_init__(self) -> None:
-        strategy = self.strategy_prompt.strip()
-        if not strategy:
-            raise CandidateError("strategy prompt must be non-empty")
-        if len(strategy) > 8000:
-            raise CandidateError("strategy prompt exceeds 8000 characters")
-        if "```" in strategy:
-            raise CandidateError("strategy prompt must not contain code fences")
-        try:
-            structured = json.loads(strategy)
-        except json.JSONDecodeError:
-            structured = None
-        if isinstance(structured, (dict, list)):
-            raise CandidateError("strategy prompt must be plain guidance, not metadata")
-
-    def to_gepa_candidate(self) -> dict[str, str]:
-        return {
-            "strategy_prompt": self.strategy_prompt,
-            "cadence_policy": json.dumps(
-                self.cadence.to_dict(),
-                sort_keys=True,
-                separators=(",", ":"),
-            ),
-        }
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "schema_version": self.schema_version,
-            "strategy_prompt": self.strategy_prompt,
-            "cadence": self.cadence.to_dict(),
-            "candidate_hash": self.candidate_hash,
-        }
-
-    @property
-    def candidate_hash(self) -> str:
-        canonical = json.dumps(
-            {
-                "schema_version": self.schema_version,
-                "strategy_prompt": self.strategy_prompt,
-                "cadence": self.cadence.to_dict(),
-            },
-            sort_keys=True,
-            separators=(",", ":"),
-        )
-        return f"sha256:{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
-
-    @classmethod
-    def from_gepa_candidate(cls, raw: object) -> CandidatePolicy:
-        if not isinstance(raw, dict):
-            raise CandidateError("GEPA candidate must be an object")
-        unknown = sorted(set(raw).difference({"strategy_prompt", "cadence_policy"}))
-        if unknown:
-            raise CandidateError(
-                f"candidate contains unknown fields: {', '.join(unknown)}"
-            )
-        strategy = raw.get("strategy_prompt")
-        cadence_raw = raw.get("cadence_policy")
-        if not isinstance(strategy, str):
-            raise CandidateError("candidate strategy_prompt must be a string")
-        if not isinstance(cadence_raw, str):
-            raise CandidateError("candidate cadence_policy must be a JSON string")
-        try:
-            cadence_payload = json.loads(cadence_raw)
-        except json.JSONDecodeError as exc:
-            raise CandidateError("candidate cadence_policy is invalid JSON") from exc
-        return cls(
-            strategy_prompt=strategy.strip(),
-            cadence=_parse_cadence(cadence_payload),
-        )
-
-    @classmethod
-    def from_dict(cls, raw: object) -> CandidatePolicy:
-        if not isinstance(raw, dict):
-            raise CandidateError("candidate artifact must be an object")
-        unknown = sorted(
-            set(raw).difference(
-                {"schema_version", "strategy_prompt", "cadence", "candidate_hash"}
-            )
-        )
-        if unknown:
-            raise CandidateError(
-                f"candidate artifact contains unknown fields: {', '.join(unknown)}"
-            )
-        if raw.get("schema_version") != "sisyphus_harness.policy_candidate.v1":
-            raise CandidateError("unsupported candidate schema version")
-        strategy = raw.get("strategy_prompt")
-        if not isinstance(strategy, str):
-            raise CandidateError("candidate strategy_prompt must be a string")
-        candidate = cls(
-            strategy_prompt=strategy,
-            cadence=_parse_cadence(raw.get("cadence")),
-        )
-        recorded_hash = raw.get("candidate_hash")
-        if recorded_hash is not None and recorded_hash != candidate.candidate_hash:
-            raise CandidateError("candidate hash does not match artifact content")
-        return candidate
-
-
-@dataclass(frozen=True, slots=True)
-class EvaluationObservation:
-    score: float
-    success: bool
-    hard_gate_passed: bool
-    diagnostics: dict[str, object]
-    scores: dict[str, float]
-
-    def __post_init__(self) -> None:
-        if not math.isfinite(self.score) or not 0 <= self.score <= 1:
-            raise ValueError("evaluation score must be finite and between 0 and 1")
-        if any(
-            not math.isfinite(value) or not 0 <= value <= 1
-            for value in self.scores.values()
-        ):
-            raise ValueError("evaluation sub-scores must be between 0 and 1")
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "score": self.score,
-            "success": self.success,
-            "hard_gate_passed": self.hard_gate_passed,
-            "diagnostics": self.diagnostics,
-            "scores": self.scores,
-        }
-
-
-@dataclass(frozen=True, slots=True)
-class EvaluationAggregate:
-    count: int
-    mean_score: float
-    success_rate: float
-    all_hard_gates_passed: bool
-    observations: tuple[dict[str, object], ...]
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "count": self.count,
-            "mean_score": self.mean_score,
-            "success_rate": self.success_rate,
-            "all_hard_gates_passed": self.all_hard_gates_passed,
-            "observations": list(self.observations),
-        }
-
-
 @dataclass(frozen=True, slots=True)
 class EvolutionEngineResult:
     candidate: CandidatePolicy
     metadata: dict[str, object]
-
-
-@dataclass(frozen=True, slots=True)
-class EvolutionResult:
-    evolution_id: str
-    accepted: bool
-    status: str
-    reasons: tuple[str, ...]
-    baseline_train: EvaluationAggregate
-    baseline_holdout: EvaluationAggregate
-    candidate_train: EvaluationAggregate
-    candidate_holdout: EvaluationAggregate
-    candidate: CandidatePolicy
-    engine_metadata: dict[str, object]
-    artifact_path: str
-    schema_version: str = "sisyphus_harness.evolution_result.v1"
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "schema_version": self.schema_version,
-            "evolution_id": self.evolution_id,
-            "accepted": self.accepted,
-            "status": self.status,
-            "reasons": list(self.reasons),
-            "baseline_train": self.baseline_train.to_dict(),
-            "baseline_holdout": self.baseline_holdout.to_dict(),
-            "candidate_train": self.candidate_train.to_dict(),
-            "candidate_holdout": self.candidate_holdout.to_dict(),
-            "candidate": self.candidate.to_dict(),
-            "engine_metadata": self.engine_metadata,
-            "artifact_path": self.artifact_path,
-        }
 
 
 EvaluationFunction = Callable[
@@ -507,37 +327,6 @@ def _normalize_reflection_output(content: str, prompt: str) -> str:
         if isinstance(strategy, str) and strategy.strip():
             return strategy.strip()
     return candidate
-
-
-def _parse_cadence(raw: object) -> CadencePolicy:
-    if not isinstance(raw, dict):
-        raise CandidateError("candidate cadence must be an object")
-    allowed = {
-        "compaction_interval_steps",
-        "context_char_limit",
-        "keep_recent_events",
-        "reflection_interval_steps",
-        "observation_interval_steps",
-        "verification_interval_mutations",
-        "stagnation_limit",
-    }
-    unknown = sorted(set(raw).difference(allowed))
-    missing = sorted(allowed.difference(raw))
-    if unknown:
-        raise CandidateError(f"candidate cadence has unknown fields: {', '.join(unknown)}")
-    if missing:
-        raise CandidateError(f"candidate cadence is missing fields: {', '.join(missing)}")
-    values: dict[str, int] = {}
-    for key in sorted(allowed):
-        value = raw[key]
-        if isinstance(value, bool) or not isinstance(value, int):
-            raise CandidateError(f"candidate cadence {key} must be an integer")
-        values[key] = value
-    try:
-        return CadencePolicy(**values)
-    except ValueError as exc:
-        raise CandidateError(str(exc)) from exc
-
 
 def _evaluate_set(
     policy: CandidatePolicy,

@@ -11,7 +11,8 @@ import platform
 import secrets
 from typing import Any
 
-from .evolution import CandidatePolicy, validate_evolution_id
+from .contracts.policy import CandidatePolicy
+from .evolution import validate_evolution_id
 from .receipts import write_json_atomic
 from .workspace import contained_path
 

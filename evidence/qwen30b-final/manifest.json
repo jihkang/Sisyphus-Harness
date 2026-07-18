@@ -1,6 +1,7 @@
 {
   "schema_version": "sisyphus_harness.evidence_manifest.v1",
   "created_at": "2026-07-17T19:31:35Z",
+  "source_revision": "47539e0d69a70256fcb0f0bb6b96176b67dfa99d",
   "evolution_id": "qwen30b-gepa-20260718-11",
   "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
   "holdout_identity": "holdout-v3",
@@ -395,8 +396,8 @@
   "bundled_artifacts": [
     {
       "path": "evidence/qwen30b-final/README.md",
-      "sha256": "c1bce980b0320d166642ed16384378c33a4c389a87572b94dda9e15ef632541e",
-      "size_bytes": 4995
+      "sha256": "efbe4f3d87aafb8ed003834346d1d0d793c12a03533069422ae5529c96ac1d24",
+      "size_bytes": 5175
     },
     {
       "path": "evidence/qwen30b-final/artifacts/direct/change.diff",
@@ -635,8 +636,8 @@
     },
     {
       "path": "evidence/qwen30b-final/verify_manifest.py",
-      "sha256": "034ca923d332583b7775b180786a358cb34a07dd56c3cde5b87b8f503b5ba2c5",
-      "size_bytes": 1790
+      "sha256": "034410d35dc8b331358131532669a92c7de58bc6f6c6ff48d8b5379071843ee4",
+      "size_bytes": 3009
     }
   ],
   "external_inputs": [
@@ -695,6 +696,12 @@
       "candidate_hash_changed": false,
       "evidence_path": "evidence/qwen30b-final/artifacts/post-merge-main",
       "reason": "PR/CI/merge receipt and real-model smoke from synchronized merged main"
+    },
+    {
+      "id": "source-revision-pinning-20260718",
+      "candidate_hash_changed": false,
+      "evidence_path": "evidence/qwen30b-final/README.md",
+      "reason": "Bind historical execution inputs to their Git revision instead of mutable HEAD"
     }
   ]
 }

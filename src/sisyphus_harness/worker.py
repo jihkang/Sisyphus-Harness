@@ -6,7 +6,7 @@ from pathlib import Path
 import threading
 from typing import Any, Callable
 
-from .agent import AgentTask, LocalCodingAgent
+from .agent import LocalCodingAgent
 from .authority import (
     agent_artifact_root,
     authority_database_path,
@@ -14,7 +14,8 @@ from .authority import (
     verification_artifact_root,
 )
 from .config import ProviderSettings, load_harness_config
-from .evolution import CandidatePolicy
+from .contracts.agent import AgentTask
+from .contracts.policy import CandidatePolicy
 from .models import JobRecord
 from .policy import PolicyRegistry
 from .provider import ChatProvider, OpenAICompatibleProvider

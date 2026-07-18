@@ -100,6 +100,9 @@ receipt and redacted run artifacts are under `artifacts/post-merge-main`.
 - A fresh venv installed the wheel with `pip --no-index --no-deps`; import and
   CLI authority initialization succeeded outside the checkout.
 
-`manifest.json` hashes every bundled artifact and the referenced source inputs.
+`manifest.json` hashes every bundled artifact and the source inputs at pinned Git
+revision `47539e0d69a70256fcb0f0bb6b96176b67dfa99d`. This keeps the historical
+30.5B execution evidence bound to the code that produced it as later revisions
+change the runtime.
 `final-verification.json` records the original final checks; the post-review
 rerun is recorded separately in `final-code-verification.json`.

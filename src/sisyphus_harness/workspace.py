@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import hashlib
 import os
 from pathlib import Path
 import re
 import subprocess
+
+from .contracts.workspace import WorkspaceSnapshot
 
 
 class PathBoundaryError(ValueError):
@@ -14,20 +15,6 @@ class PathBoundaryError(ValueError):
 
 class WorkspaceStateError(RuntimeError):
     pass
-
-
-@dataclass(frozen=True, slots=True)
-class WorkspaceSnapshot:
-    commit_sha: str
-    state_hash: str
-    changed_paths: tuple[str, ...]
-
-    def to_dict(self) -> dict[str, object]:
-        return {
-            "commit_sha": self.commit_sha,
-            "state_hash": self.state_hash,
-            "changed_paths": list(self.changed_paths),
-        }
 
 
 def contained_path(root: Path, value: str | Path, *, require_relative: bool = False) -> Path:

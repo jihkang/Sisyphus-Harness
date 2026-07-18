@@ -5,7 +5,8 @@ import math
 from pathlib import Path
 import tomllib
 
-from .models import CommandSpec
+from .contracts.policy import CadencePolicy
+from .contracts.verification import CommandSpec
 
 
 class ConfigError(ValueError):
@@ -67,49 +68,6 @@ class AgentLimits:
             raise ValueError("max_protocol_errors is outside the supported range")
         if not 0 <= self.max_compactions <= 64:
             raise ValueError("agent error and compaction limits must be non-negative")
-
-
-@dataclass(frozen=True, slots=True)
-class CadencePolicy:
-    compaction_interval_steps: int = 6
-    context_char_limit: int = 48_000
-    keep_recent_events: int = 4
-    reflection_interval_steps: int = 4
-    observation_interval_steps: int = 3
-    verification_interval_mutations: int = 3
-    stagnation_limit: int = 4
-
-    def __post_init__(self) -> None:
-        values = self.to_dict()
-        if any(value <= 0 for value in values.values()):
-            raise ValueError("cadence values must be positive")
-        if not 1 <= self.compaction_interval_steps <= 64:
-            raise ValueError("compaction_interval_steps is outside the supported range")
-        if not 4000 <= self.context_char_limit <= 1_000_000:
-            raise ValueError("context_char_limit is outside the supported range")
-        if not 1 <= self.keep_recent_events <= 32:
-            raise ValueError("keep_recent_events is outside the supported range")
-        if not 1 <= self.reflection_interval_steps <= 64:
-            raise ValueError("reflection_interval_steps is outside the supported range")
-        if not 1 <= self.observation_interval_steps <= 64:
-            raise ValueError("observation_interval_steps is outside the supported range")
-        if not 1 <= self.verification_interval_mutations <= 32:
-            raise ValueError(
-                "verification_interval_mutations is outside the supported range"
-            )
-        if not 2 <= self.stagnation_limit <= 32:
-            raise ValueError("stagnation_limit is outside the supported range")
-
-    def to_dict(self) -> dict[str, int]:
-        return {
-            "compaction_interval_steps": self.compaction_interval_steps,
-            "context_char_limit": self.context_char_limit,
-            "keep_recent_events": self.keep_recent_events,
-            "reflection_interval_steps": self.reflection_interval_steps,
-            "observation_interval_steps": self.observation_interval_steps,
-            "verification_interval_mutations": self.verification_interval_mutations,
-            "stagnation_limit": self.stagnation_limit,
-        }
 
 
 @dataclass(frozen=True, slots=True)
