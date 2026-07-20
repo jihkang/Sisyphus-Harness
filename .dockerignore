@@ -1,0 +1,12 @@
+.git
+.planning
+.venv
+__pycache__
+*.pyc
+.coverage
+artifacts
+benchmarks
+dist
+docs
+evidence
+tests

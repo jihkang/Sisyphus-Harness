@@ -9,6 +9,24 @@ permissions:
   contents: read
 
 jobs:
+  static-and-container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      - run: python -m pip install uv==0.11.6
+      - run: uvx --from ruff==0.15.22 ruff check .
+      - run: uvx --from bandit==1.9.4 bandit -r src -ll
+      - run: docker build -f docker/verifier.Dockerfile -t sisyphus-harness-verifier:ci .
+      - name: Validate verifier Compose boundary
+        env:
+          SISYPHUS_BUNDLE_STORE: /tmp/sisyphus-bundles
+          SISYPHUS_VERIFICATION_STAGING: /tmp/sisyphus-staging
+          SISYPHUS_VERIFICATION_REQUEST: /tmp/sisyphus-request.json
+        run: docker compose config --quiet
+
   core:
     strategy:
       fail-fast: false

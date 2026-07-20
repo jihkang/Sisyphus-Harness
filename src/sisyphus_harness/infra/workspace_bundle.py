@@ -33,13 +33,20 @@ class FilesystemWorkspaceBundleStore:
         max_entries: int = 100_000,
         max_file_bytes: int = 256 * 1024 * 1024,
         max_bundle_bytes: int = 1024 * 1024 * 1024,
+        max_manifest_bytes: int = 64 * 1024 * 1024,
     ) -> None:
-        if min(max_entries, max_file_bytes, max_bundle_bytes) <= 0:
+        if min(
+            max_entries,
+            max_file_bytes,
+            max_bundle_bytes,
+            max_manifest_bytes,
+        ) <= 0:
             raise ValueError("workspace bundle limits must be positive")
         self.root = root
         self.max_entries = max_entries
         self.max_file_bytes = max_file_bytes
         self.max_bundle_bytes = max_bundle_bytes
+        self.max_manifest_bytes = max_manifest_bytes
 
     def create(self, workspace: Path) -> WorkspaceBundleRef:
         source_root = workspace.resolve()
@@ -74,13 +81,19 @@ class FilesystemWorkspaceBundleStore:
                     except FileNotFoundError:
                         continue
                     if stat.S_ISLNK(metadata.st_mode):
-                        entry = _add_symlink(archive, source_root, path, relative)
+                        entry = _add_symlink(
+                            archive,
+                            source_root,
+                            path,
+                            relative,
+                            metadata,
+                        )
                     elif stat.S_ISREG(metadata.st_mode):
                         entry = _add_file(
                             archive,
                             path,
                             relative,
-                            metadata.st_mode,
+                            metadata,
                             max_file_bytes=self.max_file_bytes,
                         )
                         total_bytes += int(entry["size_bytes"])
@@ -107,13 +120,19 @@ class FilesystemWorkspaceBundleStore:
                     "tree_hash": tree_hash,
                     "entries": entries,
                 }
+                manifest_bytes = _canonical_json(manifest) + b"\n"
+                if len(manifest_bytes) > self.max_manifest_bytes:
+                    raise WorkspaceBundleError(
+                        "workspace bundle manifest exceeds size limit"
+                    )
                 _add_bytes(
                     archive,
                     _BUNDLE_MANIFEST,
-                    _canonical_json(manifest) + b"\n",
+                    manifest_bytes,
                     mode=0o644,
                 )
 
+            _fsync_file(temporary_path)
             archive_size = temporary_path.stat().st_size
             if archive_size > self.max_bundle_bytes:
                 raise WorkspaceBundleError("workspace archive exceeds size limit")
@@ -142,6 +161,7 @@ class FilesystemWorkspaceBundleStore:
                 temporary_path.unlink()
             else:
                 os.replace(temporary_path, archive_path)
+                _fsync_directory(self.root)
             write_json_atomic(self._reference_path(ref), ref.to_dict())
             return ref
         finally:
@@ -222,7 +242,7 @@ class FilesystemWorkspaceBundleStore:
                     )
                 seen.add(relative)
                 if relative == _BUNDLE_MANIFEST:
-                    if not member.isfile() or member.size > 1024 * 1024:
+                    if not member.isfile() or member.size > self.max_manifest_bytes:
                         raise WorkspaceBundleError("workspace bundle manifest is invalid")
                     manifest_file = archive.extractfile(member)
                     if manifest_file is None:
@@ -338,31 +358,53 @@ def _add_file(
     archive: tarfile.TarFile,
     path: Path,
     relative: str,
-    mode: int,
+    metadata: os.stat_result,
     *,
     max_file_bytes: int,
 ) -> dict[str, object]:
     digest = hashlib.sha256()
     size = 0
-    with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as content:
-        with path.open("rb") as source:
-            for chunk in iter(lambda: source.read(1024 * 1024), b""):
-                size += len(chunk)
-                if size > max_file_bytes:
-                    raise WorkspaceBundleError(
-                        f"workspace file exceeds bundle limit: {relative}"
-                    )
-                digest.update(chunk)
-                content.write(chunk)
-        content.seek(0)
-        executable = bool(mode & 0o111)
-        _add_stream(
-            archive,
-            relative,
-            content,
-            size=size,
-            mode=0o755 if executable else 0o644,
-        )
+    flags = os.O_RDONLY
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    descriptor = -1
+    try:
+        descriptor = os.open(path, flags)
+        opened = os.fstat(descriptor)
+        _require_stable_entry(metadata, opened, relative)
+        if not stat.S_ISREG(opened.st_mode):
+            raise WorkspaceBundleError(
+                f"workspace entry changed type while bundling: {relative}"
+            )
+        with os.fdopen(descriptor, "rb", closefd=True) as source:
+            descriptor = -1
+            with tempfile.SpooledTemporaryFile(max_size=8 * 1024 * 1024) as content:
+                for chunk in iter(lambda: source.read(1024 * 1024), b""):
+                    size += len(chunk)
+                    if size > max_file_bytes:
+                        raise WorkspaceBundleError(
+                            f"workspace file exceeds bundle limit: {relative}"
+                        )
+                    digest.update(chunk)
+                    content.write(chunk)
+                finished = os.fstat(source.fileno())
+                _require_stable_entry(opened, finished, relative)
+                content.seek(0)
+                executable = bool(opened.st_mode & 0o111)
+                _add_stream(
+                    archive,
+                    relative,
+                    content,
+                    size=size,
+                    mode=0o755 if executable else 0o644,
+                )
+    except OSError as exc:
+        raise WorkspaceBundleError(
+            f"workspace file could not be opened safely: {relative}"
+        ) from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
     return {
         "path": relative,
         "kind": "file",
@@ -377,8 +419,10 @@ def _add_symlink(
     workspace: Path,
     path: Path,
     relative: str,
+    metadata: os.stat_result,
 ) -> dict[str, object]:
     target = os.readlink(path)
+    _require_stable_entry(metadata, path.lstat(), relative)
     _validate_symlink_target(workspace, path, target)
     info = _tar_info(relative, mode=0o777)
     info.type = tarfile.SYMTYPE
@@ -583,3 +627,33 @@ def _sha256_file(path: Path) -> str:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def _require_stable_entry(
+    before: os.stat_result,
+    after: os.stat_result,
+    relative: str,
+) -> None:
+    fields = ("st_dev", "st_ino", "st_mode", "st_size", "st_mtime_ns", "st_ctime_ns")
+    if any(getattr(before, field) != getattr(after, field) for field in fields):
+        raise WorkspaceBundleError(
+            f"workspace entry changed while bundling: {relative}"
+        )
+
+
+def _fsync_file(path: Path) -> None:
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _fsync_directory(directory: Path) -> None:
+    if os.name == "nt":
+        return
+    descriptor = os.open(directory, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)

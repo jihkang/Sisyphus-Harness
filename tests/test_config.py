@@ -234,6 +234,27 @@ class ConfigTests(unittest.TestCase):
             ),
             (
                 lambda: ProviderSettings(
+                    base_url="file:///tmp/provider",
+                    model="model",
+                ),
+                "HTTP",
+            ),
+            (
+                lambda: ProviderSettings(
+                    base_url="http://user:secret@localhost/v1",
+                    model="model",
+                ),
+                "without credentials",
+            ),
+            (
+                lambda: ProviderSettings(
+                    base_url="http://localhost:invalid/v1",
+                    model="model",
+                ),
+                "invalid",
+            ),
+            (
+                lambda: ProviderSettings(
                     base_url="http://localhost/v1",
                     model="model",
                     timeout_seconds=0,

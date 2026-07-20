@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import json
+import math
 import os
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 import urllib.error
 import urllib.request
 
@@ -37,6 +38,17 @@ class ChatProvider(Protocol):
         ...
 
 
+@runtime_checkable
+class DeadlineChatProvider(Protocol):
+    def complete_with_timeout(
+        self,
+        messages: tuple[ChatMessage, ...],
+        *,
+        timeout_seconds: float,
+    ) -> ChatResponse:
+        ...
+
+
 class OpenAICompatibleProvider:
     def __init__(
         self,
@@ -48,6 +60,19 @@ class OpenAICompatibleProvider:
         self.json_mode = json_mode
 
     def complete(self, messages: tuple[ChatMessage, ...]) -> ChatResponse:
+        return self.complete_with_timeout(
+            messages,
+            timeout_seconds=self.settings.timeout_seconds,
+        )
+
+    def complete_with_timeout(
+        self,
+        messages: tuple[ChatMessage, ...],
+        *,
+        timeout_seconds: float,
+    ) -> ChatResponse:
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ProviderError("provider deadline timeout must be positive and finite")
         endpoint = f"{self.settings.base_url.rstrip('/')}/chat/completions"
         request_payload: dict[str, object] = {
             "model": self.settings.model,
@@ -60,6 +85,7 @@ class OpenAICompatibleProvider:
             request_payload["response_format"] = AGENT_DECISION_RESPONSE_FORMAT
         payload = json.dumps(request_payload).encode("utf-8")
         headers = {"Content-Type": "application/json"}
+        authorization: str | None = None
         if self.settings.api_key_env is not None:
             api_key = os.environ.get(self.settings.api_key_env)
             if not api_key:
@@ -67,17 +93,20 @@ class OpenAICompatibleProvider:
                     f"provider API key environment variable is unset: "
                     f"{self.settings.api_key_env}"
                 )
-            headers["Authorization"] = f"Bearer {api_key}"
+            authorization = f"Bearer {api_key}"
         request = urllib.request.Request(
             endpoint,
             data=payload,
             headers=headers,
             method="POST",
         )
+        if authorization is not None:
+            request.add_unredirected_header("Authorization", authorization)
         try:
-            with urllib.request.urlopen(
+            # ProviderSettings rejects non-HTTP(S) schemes before this boundary.
+            with urllib.request.urlopen(  # nosec B310
                 request,
-                timeout=self.settings.timeout_seconds,
+                timeout=min(self.settings.timeout_seconds, timeout_seconds),
             ) as response:
                 body = response.read(MAX_RESPONSE_BYTES + 1)
         except urllib.error.HTTPError as exc:

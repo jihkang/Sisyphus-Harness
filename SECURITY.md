@@ -49,6 +49,28 @@ detection records repository changes after execution; it does not prevent or
 undo writes outside the repository. Use a container, VM, or equivalent external
 sandbox for untrusted models or repositories.
 
+`DockerVerifierTransport` is the supplied external verifier boundary. It uses a
+read-only root filesystem and an isolated read-only view containing only the
+requested bundle archive/reference pair, disables networking, drops capabilities,
+bounds CPU, memory, process count, and combined Docker stdout/stderr, and exposes
+only a fresh writable staging directory. The host rejects symlinked, digest-invalid,
+or concurrently replaced source bundle objects before launch. Output overflow or
+timeout kills the Docker client process group and force-removes its CID. The host
+validates the staged receipt reference and bytes before atomically publishing it
+to the authoritative evidence root. This
+does not turn the in-process verifier or the coding Agent into a sandbox, and it
+is not a multi-tenant isolation claim. The service and test command share one
+container UID and mount namespace; the Docker boundary therefore does not hide
+the current request/profile or writable staging paths from that command. Put
+secret oracle assets behind a separate command sandbox or verifier-only
+namespace.
+
+The standalone Compose entry point cannot perform the transport's host-side CAS
+copy. Its `SISYPHUS_BUNDLE_STORE` must therefore point to a fresh directory that
+contains only the exact validated request archive/reference pair, and its staging
+mount must be fresh and non-authoritative. Mounting the full CAS weakens bundle
+confidentiality even though the mount remains read-only.
+
 ## Operational Requirements
 
 - Bind local model servers to loopback unless a separate authenticated network
@@ -60,9 +82,13 @@ sandbox for untrusted models or repositories.
   terminal database transition, not side effects from a worker that continues
   after losing its lease.
 - Keep provider and verifier timeouts below the configured agent runtime budget.
-  The runtime budget is checked between agent steps and does not preempt an
-  already-blocked provider or verifier operation.
+  One monotonic deadline is propagated through the built-in provider, tools,
+  and verifier. A third-party port that does not implement the deadline-aware
+  protocol can still overrun while blocked and must be treated as trusted.
 - Keep benchmark verifier programs outside agent workspaces.
+- Give every manual Compose verifier invocation a new empty
+  `SISYPHUS_VERIFICATION_STAGING` directory; never mount the authoritative
+  evidence root read-write into the container.
 - Inspect evolution train and holdout receipts before approval.
 - Back up the Git common directory if queue, policy, and receipt history must be
   retained.

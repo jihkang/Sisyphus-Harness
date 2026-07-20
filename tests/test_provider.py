@@ -78,6 +78,24 @@ class ProviderTests(unittest.TestCase):
         request = urlopen.call_args.args[0]
         self.assertNotIn("response_format", json.loads(request.data))
 
+    def test_explicit_deadline_clamps_provider_timeout(self) -> None:
+        payload = {"choices": [{"message": {"content": "done"}}]}
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response(payload),
+        ) as urlopen:
+            self.provider.complete_with_timeout(
+                (ChatMessage(role="user", content="task"),),
+                timeout_seconds=0.25,
+            )
+
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 0.25)
+        with self.assertRaisesRegex(ProviderError, "positive and finite"):
+            self.provider.complete_with_timeout(
+                (ChatMessage(role="user", content="task"),),
+                timeout_seconds=0,
+            )
+
     def test_http_and_invalid_payload_fail_closed(self) -> None:
         error = urllib.error.HTTPError(
             url=self.settings.base_url,
@@ -149,6 +167,41 @@ class ProviderTests(unittest.TestCase):
                 ):
                     provider.complete((ChatMessage(role="user", content="task"),))
                 urlopen.assert_not_called()
+
+    def test_api_key_is_not_copied_to_redirected_requests(self) -> None:
+        provider = OpenAICompatibleProvider(
+            ProviderSettings(
+                base_url=self.settings.base_url,
+                model="local",
+                api_key_env="SISYPHUS_TEST_API_KEY",
+            )
+        )
+        payload = {"choices": [{"message": {"content": "done"}}]}
+
+        with (
+            patch.dict(
+                os.environ,
+                {"SISYPHUS_TEST_API_KEY": "test-secret"},
+            ),
+            patch("urllib.request.urlopen", return_value=_Response(payload)) as urlopen,
+        ):
+            provider.complete((ChatMessage(role="user", content="task"),))
+
+        request = urlopen.call_args.args[0]
+        self.assertEqual(
+            request.get_header("Authorization"),
+            "Bearer test-secret",
+        )
+        redirected = urllib.request.HTTPRedirectHandler().redirect_request(
+            request,
+            None,
+            302,
+            "Found",
+            {},
+            "https://redirected.example/chat/completions",
+        )
+        assert redirected is not None
+        self.assertIsNone(redirected.get_header("Authorization"))
 
 
 if __name__ == "__main__":

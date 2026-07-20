@@ -19,10 +19,12 @@ class ArchitectureDocumentationTests(unittest.TestCase):
             'CLI["cli.py"] --> Adapter["adapters/in_process.py"]',
             'Agent --> VerificationPort["VerificationPort"]',
             'Bench --> AgentFactory["AgentRunFactoryPort"]',
-            "현재 구현과 ADR 목표 상태",
-            "VerificationEvidencePort",
+            "현재 구현, 전환 상태, 목표 상태",
+            "VerificationServicePort",
             "atomically persisted receipt",
-            "_latest_criterion_pass_rate()",
+            "DockerVerifierTransport",
+            "EvidenceContract",
+            "derived_candidate_only",
         ):
             with self.subTest(required=required):
                 self.assertIn(required, content)

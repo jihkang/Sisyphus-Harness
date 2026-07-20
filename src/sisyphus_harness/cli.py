@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 from pathlib import Path
+import sqlite3
 import sys
 from typing import Sequence
 import uuid
@@ -15,8 +17,10 @@ from .authority import (
     agent_artifact_root,
     authority_database_path,
     evolution_artifact_root,
+    knowledge_index_path,
     policy_root,
     verification_artifact_root,
+    workspace_bundle_root,
 )
 from .benchmarks import CodingAgentBenchmarkEvaluator, load_benchmark_dataset
 from .config import (
@@ -26,6 +30,12 @@ from .config import (
     load_verification_config,
 )
 from .contracts.agent import AgentTask
+from .contracts.codec import loads_strict_json
+from .contracts.knowledge import (
+    DERIVED_CANDIDATE_AUTHORITY,
+    KnowledgeEdge,
+    KnowledgeNode,
+)
 from .contracts.policy import CandidatePolicy
 from .database import Database
 from .evolution import (
@@ -34,6 +44,9 @@ from .evolution import (
     evaluate_policy,
     validate_evolution_id,
 )
+from .infra.workspace_bundle import FilesystemWorkspaceBundleStore
+from .infra.knowledge_index import KnowledgeIndexError, SQLiteKnowledgeIndex
+from .knowledge_graph import KnowledgeGraph
 from .policy import PolicyRegistry
 from .provider import OpenAICompatibleProvider
 from .queue import JobQueue
@@ -128,6 +141,39 @@ def build_parser() -> argparse.ArgumentParser:
 
     show_parser = subparsers.add_parser("policy-show")
     _repo_argument(show_parser)
+
+    graph_init_parser = subparsers.add_parser("graph-init")
+    _repo_argument(graph_init_parser)
+
+    graph_node_parser = subparsers.add_parser("graph-put-node")
+    _repo_argument(graph_node_parser)
+    graph_node_parser.add_argument("--node-json", required=True)
+
+    graph_edge_parser = subparsers.add_parser("graph-put-edge")
+    _repo_argument(graph_edge_parser)
+    graph_edge_parser.add_argument("--edge-json", required=True)
+
+    graph_search_parser = subparsers.add_parser("graph-search")
+    _repo_argument(graph_search_parser)
+    graph_search_parser.add_argument("--anchor-id", required=True)
+    graph_search_parser.add_argument("--query", required=True)
+    _graph_query_limits(graph_search_parser)
+
+    graph_dependencies_parser = subparsers.add_parser("graph-dependencies")
+    _repo_argument(graph_dependencies_parser)
+    graph_dependencies_parser.add_argument("--task-id", required=True)
+    graph_dependencies_parser.add_argument("--max-depth", type=int, default=3)
+
+    graph_next_parser = subparsers.add_parser("graph-next")
+    _repo_argument(graph_next_parser)
+    graph_next_parser.add_argument("--anchor-id", required=True)
+    graph_next_parser.add_argument("--query")
+    _graph_query_limits(graph_next_parser)
+    graph_next_parser.add_argument(
+        "--dependency-max-depth",
+        type=int,
+        default=3,
+    )
     return parser
 
 
@@ -139,6 +185,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         json.JSONDecodeError,
         OSError,
         RuntimeError,
+        sqlite3.Error,
         ValueError,
     ) as exc:
         _print_json(
@@ -207,6 +254,12 @@ def _main(argv: Sequence[str] | None) -> int:
     if args.command == "task-submit":
         config_path = _repo_path(repo_root, args.config)
         config_relative = config_path.relative_to(repo_root).as_posix()
+        config = load_harness_config(config_path)
+        policy = _resolve_policy(repo_root, config, args.policy)
+        config_digest = _sha256_path(config_path)
+        workspace_bundle = FilesystemWorkspaceBundleStore(
+            workspace_bundle_root(repo_root)
+        ).create(repo_root)
         job = JobQueue(authority_database_path(repo_root)).enqueue(
             kind="coding-agent",
             payload={
@@ -215,6 +268,9 @@ def _main(argv: Sequence[str] | None) -> int:
                 "config": config_relative,
                 "policy": args.policy,
                 "run_id": args.run_id,
+                "workspace_bundle": workspace_bundle.to_dict(),
+                "config_sha256": config_digest,
+                "policy_snapshot": policy.to_dict(),
             },
             idempotency_key=args.idempotency_key,
         )
@@ -290,7 +346,9 @@ def _main(argv: Sequence[str] | None) -> int:
         holdout = load_benchmark_dataset(
             _repo_path(repo_root, args.holdout_dataset)
         )
-        evolution_id = args.evolution_id or f"evolution-{uuid.uuid4().hex}"
+        evolution_id = validate_evolution_id(
+            args.evolution_id or f"evolution-{uuid.uuid4().hex}"
+        )
         provider = OpenAICompatibleProvider(config.provider)
         reflection_provider = OpenAICompatibleProvider(
             config.provider,
@@ -357,6 +415,102 @@ def _main(argv: Sequence[str] | None) -> int:
         policy = PolicyRegistry(policy_root(repo_root)).load_active()
         _print_json(policy.to_dict() if policy is not None else {"policy": None})
         return 0
+    if args.command == "graph-init":
+        index = SQLiteKnowledgeIndex(knowledge_index_path(repo_root))
+        index.initialize()
+        _print_json(
+            {
+                "authority": DERIVED_CANDIDATE_AUTHORITY,
+                "index_path": str(index.path),
+                "index_revision_digest": index.revision_digest(),
+                "status": "initialized",
+            }
+        )
+        return 0
+    if args.command == "graph-put-node":
+        index = _writable_knowledge_index(repo_root)
+        node = KnowledgeNode.from_dict(
+            _strict_json_object(args.node_json, "--node-json")
+        )
+        indexed = KnowledgeGraph(index).add_node(node)
+        _print_json(
+            {
+                "authority": DERIVED_CANDIDATE_AUTHORITY,
+                "index_revision_digest": index.revision_digest(),
+                "indexed": indexed,
+                "node": node.to_dict(),
+            }
+        )
+        return 0
+    if args.command == "graph-put-edge":
+        index = _writable_knowledge_index(repo_root)
+        edge = KnowledgeEdge.from_dict(
+            _strict_json_object(args.edge_json, "--edge-json")
+        )
+        indexed = KnowledgeGraph(index).add_edge(edge)
+        _print_json(
+            {
+                "authority": DERIVED_CANDIDATE_AUTHORITY,
+                "edge": edge.to_dict(),
+                "index_revision_digest": index.revision_digest(),
+                "indexed": indexed,
+            }
+        )
+        return 0
+    if args.command == "graph-search":
+        index = _readable_knowledge_index(repo_root)
+        revision = index.revision_digest()
+        hits = KnowledgeGraph(index).search(
+            args.anchor_id,
+            args.query,
+            max_depth=args.max_depth,
+            limit=args.limit,
+        )
+        if index.revision_digest() != revision:
+            raise RuntimeError(
+                "knowledge index changed while graph-search was being rendered"
+            )
+        _print_json(
+            {
+                "anchor_id": args.anchor_id,
+                "authority": DERIVED_CANDIDATE_AUTHORITY,
+                "hits": [hit.to_dict() for hit in hits],
+                "index_revision_digest": revision,
+                "max_depth": args.max_depth,
+                "query": args.query,
+            }
+        )
+        return 0
+    if args.command == "graph-dependencies":
+        index = _readable_knowledge_index(repo_root)
+        revision = index.revision_digest()
+        inspection = KnowledgeGraph(index).inspect_dependencies(
+            args.task_id,
+            max_depth=args.max_depth,
+        )
+        if index.revision_digest() != revision:
+            raise RuntimeError(
+                "knowledge index changed while dependencies were being rendered"
+            )
+        _print_json(
+            {
+                "authority": DERIVED_CANDIDATE_AUTHORITY,
+                "index_revision_digest": revision,
+                "inspection": inspection.to_dict(),
+            }
+        )
+        return 0
+    if args.command == "graph-next":
+        index = _readable_knowledge_index(repo_root)
+        context = KnowledgeGraph(index).next_step_context(
+            args.anchor_id,
+            args.query,
+            max_depth=args.max_depth,
+            dependency_max_depth=args.dependency_max_depth,
+            limit=args.limit,
+        )
+        _print_json(context.to_dict())
+        return 0
     raise AssertionError(f"unhandled command: {args.command}")
 
 
@@ -392,6 +546,11 @@ def _policy_choice(
     parser.add_argument(option, choices=("config", "active"), default="config")
 
 
+def _graph_query_limits(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--max-depth", type=int, default=3)
+    parser.add_argument("--limit", type=int, default=20)
+
+
 def _repo_path(repo_root: Path, raw: str) -> Path:
     return contained_path(repo_root, raw)
 
@@ -410,6 +569,41 @@ def _json_object(raw: str, field: str) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError(f"{field} must decode to an object")
     return payload
+
+
+def _strict_json_object(raw: str, field: str) -> dict[str, object]:
+    payload = loads_strict_json(raw, label=field)
+    if not isinstance(payload, dict):
+        raise ValueError(f"{field} must decode to an object")
+    return payload
+
+
+def _writable_knowledge_index(repo_root: Path) -> SQLiteKnowledgeIndex:
+    index = SQLiteKnowledgeIndex(knowledge_index_path(repo_root))
+    index.initialize()
+    return index
+
+
+def _readable_knowledge_index(repo_root: Path) -> SQLiteKnowledgeIndex:
+    path = knowledge_index_path(repo_root)
+    if not path.is_file():
+        raise ValueError("knowledge index is not initialized; run graph-init first")
+    index = SQLiteKnowledgeIndex(path)
+    try:
+        index.revision_digest()
+    except (KnowledgeIndexError, sqlite3.Error) as exc:
+        raise ValueError(
+            "knowledge index is not initialized or failed integrity validation"
+        ) from exc
+    return index
+
+
+def _sha256_path(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return f"sha256:{digest.hexdigest()}"
 
 
 def _print_json(payload: object, *, stream=None) -> None:

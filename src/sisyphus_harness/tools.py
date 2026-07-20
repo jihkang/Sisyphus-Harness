@@ -10,6 +10,7 @@ import tempfile
 from typing import Any
 
 from .contracts.codec import WireModel
+from .deadline import DeadlineExceeded, MonotonicDeadline
 from .workspace import PathBoundaryError, contained_path
 
 
@@ -23,6 +24,7 @@ class ToolOutcome(WireModel):
     output: dict[str, object]
     mutated: bool
 
+
 class WorkspaceTools:
     def __init__(
         self,
@@ -31,10 +33,12 @@ class WorkspaceTools:
         max_file_bytes: int,
         max_output_chars: int,
         protected_write_paths: tuple[Path, ...] = (),
+        deadline: MonotonicDeadline | None = None,
     ) -> None:
         self.workspace = workspace.resolve()
         self.max_file_bytes = max_file_bytes
         self.max_output_chars = max_output_chars
+        self.deadline = deadline
         try:
             self.protected_write_paths = tuple(
                 contained_path(self.workspace, path)
@@ -55,7 +59,18 @@ class WorkspaceTools:
         handler = handlers.get(tool)
         if handler is None:
             raise ToolError(f"unsupported tool: {tool}")
-        return handler(arguments)
+        try:
+            self._require_time()
+            return handler(arguments)
+        except ToolError:
+            raise
+        except DeadlineExceeded as exc:
+            raise ToolError(str(exc)) from exc
+        except subprocess.TimeoutExpired as exc:
+            raise ToolError(f"{tool} operation timed out") from exc
+        except (OSError, UnicodeError) as exc:
+            detail = exc.strerror if isinstance(exc, OSError) else str(exc)
+            raise ToolError(f"{tool} filesystem operation failed: {detail}") from exc
 
     def _list_files(self, arguments: dict[str, Any]) -> ToolOutcome:
         _reject_unknown(arguments, {"prefix"})
@@ -69,7 +84,7 @@ class WorkspaceTools:
             ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
             cwd=self.workspace,
             capture_output=True,
-            timeout=15,
+            timeout=self._timeout(15),
             check=False,
         )
         if completed.returncode != 0:
@@ -98,6 +113,15 @@ class WorkspaceTools:
             },
             mutated=False,
         )
+
+    def _require_time(self) -> None:
+        if self.deadline is not None:
+            self.deadline.remaining()
+
+    def _timeout(self, maximum: float) -> float:
+        if self.deadline is None:
+            return maximum
+        return self.deadline.bounded_timeout(maximum)
 
     def _read_file(self, arguments: dict[str, Any]) -> ToolOutcome:
         _reject_unknown(arguments, {"path", "start_line", "end_line"})
@@ -161,8 +185,8 @@ class WorkspaceTools:
         skipped: list[str] = []
         rendered_size = 0
         for relative in files:
-            path = self._read_path(relative)
             try:
+                path = self._read_path(relative)
                 content = self._read_text(path)
             except ToolError:
                 skipped.append(relative)
@@ -319,7 +343,7 @@ class WorkspaceTools:
             ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"],
             cwd=self.workspace,
             capture_output=True,
-            timeout=15,
+            timeout=self._timeout(15),
             check=False,
         )
         if completed.returncode != 0:
@@ -339,6 +363,7 @@ class WorkspaceTools:
             path = contained_path(self.workspace, relative, require_relative=True)
         except PathBoundaryError as exc:
             raise ToolError(str(exc)) from exc
+        _reject_resolved_protected_path(self.workspace, path, relative)
         if require_file and not path.is_file():
             raise ToolError(f"file does not exist: {relative}")
         return path
@@ -346,8 +371,10 @@ class WorkspaceTools:
     def _write_path(self, relative: str) -> Path:
         _reject_protected_path(relative)
         candidate = Path(relative)
-        if candidate.is_absolute():
-            raise ToolError(f"path must be relative to workspace: {relative}")
+        if candidate.name.casefold() == ".gitignore":
+            raise ToolError(
+                f"Git ignore controls are protected from model writes: {relative}"
+            )
         lexical = self.workspace / candidate
         try:
             resolved = contained_path(
@@ -366,17 +393,43 @@ class WorkspaceTools:
                 raise ToolError(f"write path traverses a symlink: {relative}")
         if lexical.is_symlink():
             raise ToolError(f"write target must not be a symlink: {relative}")
+        self._reject_ignored_write(relative)
         lexical.parent.mkdir(parents=True, exist_ok=True)
         return lexical
 
+    def _reject_ignored_write(self, relative: str) -> None:
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", "--", relative],
+            cwd=self.workspace,
+            capture_output=True,
+            timeout=self._timeout(15),
+            check=False,
+        )
+        if tracked.returncode == 0:
+            return
+        ignored = subprocess.run(
+            ["git", "check-ignore", "--quiet", "--", relative],
+            cwd=self.workspace,
+            capture_output=True,
+            timeout=self._timeout(15),
+            check=False,
+        )
+        if ignored.returncode == 0:
+            raise ToolError(
+                f"model writes to Git-ignored paths are not observable: {relative}"
+            )
+        if ignored.returncode != 1:
+            detail = ignored.stderr.decode("utf-8", errors="replace").strip()
+            raise ToolError(detail or "git check-ignore failed")
+
     def _read_text(self, path: Path) -> str:
-        size = path.stat().st_size
-        if size > self.max_file_bytes:
+        with path.open("rb") as handle:
+            raw = handle.read(self.max_file_bytes + 1)
+        if len(raw) > self.max_file_bytes:
             raise ToolError(
                 f"file exceeds {self.max_file_bytes} byte limit: "
                 f"{path.relative_to(self.workspace)}"
             )
-        raw = path.read_bytes()
         if b"\0" in raw:
             raise ToolError(f"binary files are not supported: {path.name}")
         try:
@@ -479,10 +532,29 @@ def _optional_positive_int(
 
 def _reject_protected_path(relative: str) -> None:
     candidate = Path(relative)
-    if candidate.is_absolute():
+    if (
+        candidate.is_absolute()
+        or "\\" in relative
+        or candidate.as_posix() != relative
+        or any(part in {"", ".", ".."} for part in candidate.parts)
+    ):
         raise ToolError(f"path must be relative to workspace: {relative}")
     if ".git" in candidate.parts or ".sisyphus-harness" in candidate.parts:
         raise ToolError(f"path is protected: {relative}")
+
+
+def _reject_resolved_protected_path(
+    workspace: Path,
+    resolved: Path,
+    requested: str,
+) -> None:
+    for protected in (workspace / ".git", workspace / ".sisyphus-harness"):
+        protected_root = protected.resolve(strict=False)
+        try:
+            resolved.relative_to(protected_root)
+        except ValueError:
+            continue
+        raise ToolError(f"path resolves into protected state: {requested}")
 
 
 def _require_expected_hash(content: str, expected: str | None) -> None:
