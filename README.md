@@ -19,6 +19,11 @@ The project is experimental and intended for supervised local use. It provides:
 - structured verification commands with no shell interpolation;
 - timeouts, process-group termination, full output, executable hashes, and
   workspace-mutation detection;
+- immutable evidence contracts with bounded three-valued predicate evaluation;
+- Control-owned shadow adjudication over the exact Worker output bundle, independent
+  of the coding agent's reported success;
+- a rebuildable, candidate-only SQLite knowledge graph with anchored depth-three
+  search, dependency inspection, and deterministic next-step context;
 - a strict JSON coding loop with automatic deterministic compaction;
 - hidden-fixture benchmark evaluation;
 - Hermes-style offline GEPA evolution of only the strategy prompt and cadence;
@@ -28,6 +33,32 @@ The model has no shell, network, merge, release, lifecycle, or policy-activation
 tool. Verification commands are not sandboxed and may execute model-edited code
 with the operator account; use an external sandbox when the model or repository
 content is not fully trusted.
+
+`DockerVerifierTransport` provides that external boundary with no network, a
+read-only root filesystem, dropped capabilities, bounded memory/CPU/processes,
+and a read-only per-run bundle view containing only the request's digest-bound
+archive and reference. The host copies that pair with no-symlink, stable-stat,
+size, digest, and strict-reference validation, so the container cannot enumerate
+other workspace bundles. Each run receives a new empty writable staging directory
+instead of the authoritative evidence root. Docker stdout and stderr are captured
+under one byte limit; overflow or timeout kills the client process group and
+force-removes the recorded container ID. The host validates the receipt bytes,
+digest, request, bundle, and profile bindings before atomically publishing the run
+under the authoritative artifact root. The executable `/work` tmpfs is separate
+from the non-executable `/tmp` tmpfs so repository-owned test programs can run
+without making general temporary storage executable.
+
+This is host containment for a single supervised run, not a hidden-oracle or
+multi-tenant confidentiality boundary. The verifier service and commands still
+share one container UID and mount namespace, so a command may inspect its own
+request/profile and writable staging paths. Secret verifier assets require a
+separate command sandbox or verifier-only mount namespace.
+
+The Compose entry point does not prepare the per-run view for you. Set
+`SISYPHUS_BUNDLE_STORE` to a new directory containing only the exact validated
+request `.tar`/`.json` pair, and set `SISYPHUS_VERIFICATION_STAGING` to a new empty
+directory for each invocation. Do not point either mount at the full bundle CAS,
+an authoritative evidence root, or a previously published directory.
 
 ## Install
 
@@ -105,13 +136,38 @@ sisyphus-harness worker-once \
   --worker-id local-worker-1
 ```
 
-Every command prints structured JSON. A failed agent or benchmark exits
-non-zero.
+After argument parsing, runtime commands print structured JSON. Standard
+`argparse` help and usage errors remain plain text. A failed agent or benchmark
+exits non-zero.
 
 Every task acceptance criterion must be covered verbatim by at least one
 configured verification command criterion. This binds the model-facing task to
 the operator-controlled receipt instead of allowing an unrelated verifier to
 grant success.
+
+That string coverage remains a compatibility check, not completion authority.
+`ControlEvidenceContractService` turns only digest-bound command facts into
+`EvidenceObservation` values and evaluates an operator-owned `EvidenceContract`.
+It does not use `AgentResult.success` as evidence and does not mutate task or queue
+state.
+
+Initialize and inspect the derived knowledge graph with:
+
+```bash
+sisyphus-harness graph-init --repo .
+sisyphus-harness graph-put-node --repo . --node-json '{...}'
+sisyphus-harness graph-put-edge --repo . --edge-json '{...}'
+sisyphus-harness graph-search --repo . --anchor-id document:1 --query "token rotation"
+sisyphus-harness graph-dependencies --repo . --task-id task:rotate
+sisyphus-harness graph-next --repo . --anchor-id document:1 \
+  --query "token rotation" --max-depth 3 --dependency-max-depth 3
+```
+
+Graph results are explicitly marked `derived_candidate_only`. They support
+retrieval and planning but cannot admit claims, close gaps, or execute tasks.
+`graph-next` records independent candidate and dependency depth budgets, and
+all returned paths, scores, eligibility reasons, and index revisions are
+cross-validated before serialization.
 
 ## Benchmark And Evolve
 
@@ -184,6 +240,7 @@ Authority and evidence are stored under:
 ```text
 $(git rev-parse --git-common-dir)/sisyphus-harness/
   authority.sqlite3
+  knowledge-index.sqlite3
   artifacts/
     agent/
     verification/

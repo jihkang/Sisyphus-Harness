@@ -10,7 +10,13 @@ import textwrap
 import time
 import unittest
 
-from sisyphus_harness.authority import authority_database_path
+from sisyphus_harness.authority import (
+    attempt_workspace_root,
+    authority_database_path,
+    workspace_bundle_root,
+)
+from sisyphus_harness.contracts import CodingJobResult
+from sisyphus_harness.infra.workspace_bundle import FilesystemWorkspaceBundleStore
 from sisyphus_harness.models import JobStatus
 from sisyphus_harness.provider import ChatResponse, ProviderError
 from sisyphus_harness.queue import JobQueue
@@ -162,6 +168,27 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(completed.status, JobStatus.COMPLETED)
         self.assertTrue(completed.result["success"])
         self.assertEqual(completed.attempts, 1)
+        result = CodingJobResult.from_dict(completed.result)
+        self.assertEqual(
+            result.agent_result.run_id,
+            "worker-agent-attempt-0001",
+        )
+        self.assertEqual(
+            (self.repository / "calc.py").read_text(encoding="utf-8"),
+            original,
+        )
+        output = Path(self.temporary_directory.name) / "output"
+        FilesystemWorkspaceBundleStore(
+            workspace_bundle_root(self.repository)
+        ).materialize(result.output_bundle, output)
+        self.assertIn(
+            "return left + right",
+            (output / "calc.py").read_text(encoding="utf-8"),
+        )
+        self.assertFalse(attempt_workspace_root(self.repository).joinpath(
+            completed.job_id,
+            "attempt-0001",
+        ).exists())
         self.assertIsNone(
             worker.run_once(worker_id="worker-1", lease_seconds=30)
         )
@@ -206,7 +233,10 @@ class WorkerTests(unittest.TestCase):
 
         assert failed is not None
         self.assertEqual(failed.status, JobStatus.FAILED)
-        self.assertIn("provider failure", failed.result["reason"])
+        self.assertIn(
+            "provider failure",
+            failed.result["agent_result"]["reason"],
+        )
 
     def test_payload_parser_is_strict(self) -> None:
         payload = CodingJobPayload.from_dict(
@@ -227,6 +257,14 @@ class WorkerTests(unittest.TestCase):
         with self.assertRaisesRegex(WorkerError, "policy"):
             CodingJobPayload.from_dict(
                 {"task": "fix", "criteria": ["one"], "policy": "automatic"}
+            )
+        with self.assertRaisesRegex(WorkerError, "safe prefix"):
+            CodingJobPayload.from_dict(
+                {
+                    "task": "fix",
+                    "criteria": ["one"],
+                    "run_id": "../unsafe",
+                }
             )
 
     def test_lease_keeper_heartbeats_and_reports_loss(self) -> None:

@@ -12,12 +12,17 @@ import tempfile
 import unittest
 
 from sisyphus_harness.benchmarks import (
+    BenchmarkError,
     CodingAgentBenchmarkEvaluator,
+    _copy_fixture,
     load_benchmark_dataset,
+    validate_benchmark_case_id,
 )
 from sisyphus_harness.config import AgentLimits, CadencePolicy
+from sisyphus_harness.contracts import AgentResult, CommandSpec
 from sisyphus_harness.evolution import CandidatePolicy
 from sisyphus_harness.provider import ChatResponse
+from sisyphus_harness.verifier import BoundedVerifier
 
 
 class FakeProvider:
@@ -31,6 +36,92 @@ class FakeProvider:
 class StubAgentRunFactory:
     def create(self, **kwargs):
         raise AssertionError("factory should not run during evaluator construction")
+
+
+class ProjectionTamperingAgentFactory:
+    def __init__(
+        self,
+        *,
+        substitute_commands: bool = False,
+        projected_success: bool = False,
+    ) -> None:
+        self.substitute_commands = substitute_commands
+        self.projected_success = projected_success
+
+    def create(
+        self,
+        *,
+        policy,
+        agent_artifact_root: Path,
+        verification_artifact_root: Path,
+    ):
+        del policy
+        substitute_commands = self.substitute_commands
+        projected_success = self.projected_success
+
+        class Agent:
+            def run(self, workspace, task, commands, *, run_id=None):
+                del task
+                executed_commands = commands
+                if substitute_commands:
+                    executed_commands = tuple(
+                        CommandSpec(
+                            name=command.name,
+                            argv=(sys.executable, "-c", "pass"),
+                            timeout_seconds=command.timeout_seconds,
+                            criteria=command.criteria,
+                        )
+                        for command in commands
+                    )
+                verifier = BoundedVerifier(verification_artifact_root)
+                receipt = verifier.verify(
+                    workspace,
+                    executed_commands,
+                    run_id=f"{run_id}-final-1",
+                )
+                artifact = agent_artifact_root / str(run_id)
+                (artifact / "steps").mkdir(parents=True)
+                (artifact / "steps" / "0001.json").write_text(
+                    json.dumps(
+                        {
+                            "step": 1,
+                            "event": {
+                                "kind": "verification",
+                                "passed": True,
+                                "criteria": [
+                                    {
+                                        "criterion": criterion,
+                                        "passed": True,
+                                    }
+                                    for command in commands
+                                    for criterion in command.criteria
+                                ],
+                            },
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                return AgentResult(
+                    run_id=str(run_id),
+                    success=projected_success,
+                    reason=(
+                        "final verification passed"
+                        if projected_success
+                        else "final verification failed"
+                    ),
+                    steps=1,
+                    compactions=0,
+                    verifications=1,
+                    workspace_state_before=receipt.workspace_state_before,
+                    workspace_state_after=receipt.workspace_state_after,
+                    changed_paths=(),
+                    artifact_path=str(artifact),
+                    verification_artifacts=(
+                        verifier.receipt_reference(receipt.run_id),
+                    ),
+                )
+
+        return Agent()
 
 
 def action(tool: str, arguments: dict[str, object]) -> str:
@@ -102,6 +193,35 @@ class BenchmarkTests(unittest.TestCase):
                     limits=AgentLimits(),
                     rollout_root=Path(directory) / "missing",
                 )
+
+    def test_case_ids_are_safe_before_rollout_paths_are_built(self) -> None:
+        for case_id in ("../escape", "nested/case", "/absolute", ".", ".."):
+            with self.subTest(case_id=case_id):
+                with self.assertRaisesRegex(BenchmarkError, "unsafe"):
+                    validate_benchmark_case_id(case_id)
+
+        self.assertEqual(validate_benchmark_case_id("python-safe_1"), "python-safe_1")
+
+    def test_fixture_copy_preserves_only_in_root_symlinks(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "source"
+            source.mkdir()
+            (source / "target.txt").write_text("inside\n", encoding="utf-8")
+            (source / "internal.txt").symlink_to("target.txt")
+
+            copied = root / "copied"
+            _copy_fixture(source, copied)
+
+            self.assertTrue((copied / "internal.txt").is_symlink())
+            self.assertEqual(os.readlink(copied / "internal.txt"), "target.txt")
+
+            outside = root / "outside.txt"
+            outside.write_text("secret\n", encoding="utf-8")
+            (source / "external.txt").symlink_to(outside)
+            with self.assertRaisesRegex(BenchmarkError, "relative|escapes workspace"):
+                _copy_fixture(source, root / "rejected")
+            self.assertFalse((root / "rejected").exists())
 
     def test_fixture_baselines_fail_hidden_verifiers(self) -> None:
         examples = load_benchmark_dataset(self.benchmark_root / "train.json")
@@ -355,6 +475,55 @@ class BenchmarkTests(unittest.TestCase):
         self.assertEqual(observation.scores["correctness"], 0.5)
         self.assertEqual(observation.diagnostics["criterion_pass_rate"], 0.5)
         self.assertGreater(observation.score, 0.35)
+
+    def test_evaluator_scores_verifier_evidence_not_agent_projection(self) -> None:
+        example = load_benchmark_dataset(self.benchmark_root / "train.json")[0]
+        with tempfile.TemporaryDirectory() as directory:
+            observation = CodingAgentBenchmarkEvaluator(
+                agent_factory=ProjectionTamperingAgentFactory(),
+                limits=AgentLimits(max_steps=2),
+                rollout_root=Path(directory),
+            )(
+                CandidatePolicy(
+                    strategy_prompt="Inspect before editing.",
+                    cadence=CadencePolicy(),
+                ),
+                example,
+            )
+
+        self.assertFalse(observation.success)
+        self.assertEqual(observation.scores["correctness"], 0.0)
+        self.assertTrue(
+            observation.diagnostics["trace_summary"]["actions"][0][
+                "verification_passed"
+            ]
+        )
+
+    def test_evaluator_rejects_receipt_for_a_different_command_profile(self) -> None:
+        example = load_benchmark_dataset(self.benchmark_root / "train.json")[0]
+        with tempfile.TemporaryDirectory() as directory:
+            observation = CodingAgentBenchmarkEvaluator(
+                agent_factory=ProjectionTamperingAgentFactory(
+                    substitute_commands=True,
+                    projected_success=True,
+                ),
+                limits=AgentLimits(max_steps=2),
+                rollout_root=Path(directory),
+            )(
+                CandidatePolicy(
+                    strategy_prompt="Inspect before editing.",
+                    cadence=CadencePolicy(),
+                ),
+                example,
+            )
+
+        self.assertFalse(observation.success)
+        self.assertFalse(observation.hard_gate_passed)
+        self.assertEqual(observation.score, 0.0)
+        self.assertIn(
+            "commands do not match the benchmark request",
+            observation.diagnostics["error"],
+        )
 
     def test_evaluator_converts_runtime_error_to_failed_hard_gate(self) -> None:
         example = {"id": "broken"}

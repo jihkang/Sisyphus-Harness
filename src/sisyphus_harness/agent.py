@@ -12,12 +12,19 @@ from typing import Any
 from .compaction import compact_events, transcript_size
 from .config import AgentLimits
 from .contracts.agent import AgentResult, AgentTask
+from .contracts.artifacts import ArtifactRef
 from .contracts.policy import CadencePolicy
 from .contracts.verification import CommandSpec
 from .contracts.workspace import WorkspaceSnapshot
-from .ports.verification import VerificationPort
+from .deadline import DeadlineExceeded, MonotonicDeadline
+from .ports.verification import VerificationEvidencePort, VerificationPort
 from .protocol import AgentDecision, ProtocolError, parse_agent_decision
-from .provider import ChatMessage, ChatProvider, ProviderError
+from .provider import (
+    ChatMessage,
+    ChatProvider,
+    DeadlineChatProvider,
+    ProviderError,
+)
 from .run_store import AgentRunStore
 from .tools import ToolError, WorkspaceTools
 from .workspace import snapshot_workspace
@@ -87,6 +94,10 @@ class LocalCodingAgent:
         if not verification_commands:
             raise ValueError("agent run requires verification commands")
         _require_criterion_coverage(task, verification_commands)
+        deadline = MonotonicDeadline.after(
+            self.limits.max_runtime_seconds,
+            clock=time.monotonic,
+        )
         root = workspace.resolve()
         initial = snapshot_workspace(root)
         resolved_run_id = run_id or f"agent-{uuid.uuid4().hex}"
@@ -115,11 +126,13 @@ class LocalCodingAgent:
             max_file_bytes=self.limits.max_file_bytes,
             max_output_chars=self.limits.max_tool_output_chars,
             protected_write_paths=self.protected_write_paths,
+            deadline=deadline,
         )
         events: list[dict[str, Any]] = []
         compact_summary: dict[str, Any] | None = None
         compactions = 0
         verifications = 0
+        verification_artifacts: list[ArtifactRef] = []
         protocol_errors = 0
         mutations_since_verify = 0
         last_failed_verification_state: str | None = None
@@ -134,11 +147,10 @@ class LocalCodingAgent:
         workspace_cycle_streak = 0
         last_fingerprint: str | None = None
         repeated_fingerprint = 0
-        started = time.monotonic()
         final_summary: str | None = None
 
         for step in range(1, self.limits.max_steps + 1):
-            if time.monotonic() - started > self.limits.max_runtime_seconds:
+            if deadline.expired():
                 return self._finish(
                     store,
                     resolved_run_id,
@@ -149,6 +161,7 @@ class LocalCodingAgent:
                     steps=step - 1,
                     compactions=compactions,
                     verifications=verifications,
+                    verification_artifacts=tuple(verification_artifacts),
                     summary=final_summary,
                 )
             if self._should_compact(step, events, compactions):
@@ -185,7 +198,29 @@ class LocalCodingAgent:
             before = snapshot_workspace(root)
             model_started = time.monotonic()
             try:
-                response = self.provider.complete(messages)
+                if isinstance(self.provider, DeadlineChatProvider):
+                    response = self.provider.complete_with_timeout(
+                        messages,
+                        timeout_seconds=deadline.remaining(),
+                    )
+                else:
+                    response = self.provider.complete(messages)
+                if deadline.expired():
+                    raise DeadlineExceeded("global execution deadline exceeded")
+            except DeadlineExceeded:
+                return self._finish(
+                    store,
+                    resolved_run_id,
+                    initial,
+                    root,
+                    success=False,
+                    reason="runtime budget exhausted",
+                    steps=step - 1,
+                    compactions=compactions,
+                    verifications=verifications,
+                    verification_artifacts=tuple(verification_artifacts),
+                    summary=final_summary,
+                )
             except ProviderError as exc:
                 event = {
                     "kind": "provider_error",
@@ -217,6 +252,7 @@ class LocalCodingAgent:
                     steps=step - 1,
                     compactions=compactions,
                     verifications=verifications,
+                    verification_artifacts=tuple(verification_artifacts),
                     summary=final_summary,
                 )
             model_duration_ms = round((time.monotonic() - model_started) * 1000)
@@ -257,6 +293,7 @@ class LocalCodingAgent:
                         steps=step,
                         compactions=compactions,
                         verifications=verifications,
+                        verification_artifacts=tuple(verification_artifacts),
                         summary=final_summary,
                     )
                 continue
@@ -299,6 +336,7 @@ class LocalCodingAgent:
                     steps=step,
                     compactions=compactions,
                     verifications=verifications,
+                    verification_artifacts=tuple(verification_artifacts),
                     summary=final_summary,
                 )
 
@@ -336,8 +374,12 @@ class LocalCodingAgent:
                     root,
                     verification_commands,
                     run_id=f"{resolved_run_id}-final-{step}",
+                    deadline_monotonic=deadline.expires_at,
                 )
                 verifications += 1
+                verification_artifacts.append(
+                    _receipt_reference(self.verifier, receipt.run_id)
+                )
                 after = snapshot_workspace(root)
                 verification_event = _verification_event(
                     receipt,
@@ -375,6 +417,7 @@ class LocalCodingAgent:
                         steps=step,
                         compactions=compactions,
                         verifications=verifications,
+                        verification_artifacts=tuple(verification_artifacts),
                         summary=final_summary,
                     )
                 if receipt.passed:
@@ -388,6 +431,7 @@ class LocalCodingAgent:
                         steps=step,
                         compactions=compactions,
                         verifications=verifications,
+                        verification_artifacts=tuple(verification_artifacts),
                         summary=final_summary,
                     )
                 last_failed_verification_state = after.state_hash
@@ -458,6 +502,7 @@ class LocalCodingAgent:
                         steps=step,
                         compactions=compactions,
                         verifications=verifications,
+                        verification_artifacts=tuple(verification_artifacts),
                         summary=final_summary,
                     )
             events.append(event)
@@ -507,6 +552,7 @@ class LocalCodingAgent:
                             steps=step,
                             compactions=compactions,
                             verifications=verifications,
+                            verification_artifacts=tuple(verification_artifacts),
                             summary=final_summary,
                         )
 
@@ -519,8 +565,12 @@ class LocalCodingAgent:
                     root,
                     verification_commands,
                     run_id=f"{resolved_run_id}-intermediate-{step}",
+                    deadline_monotonic=deadline.expires_at,
                 )
                 verifications += 1
+                verification_artifacts.append(
+                    _receipt_reference(self.verifier, receipt.run_id)
+                )
                 mutations_since_verify = 0
                 verification_event = _verification_event(
                     receipt,
@@ -559,6 +609,7 @@ class LocalCodingAgent:
                         steps=step,
                         compactions=compactions,
                         verifications=verifications,
+                        verification_artifacts=tuple(verification_artifacts),
                         summary=final_summary,
                     )
                 if receipt.passed:
@@ -592,6 +643,7 @@ class LocalCodingAgent:
             steps=self.limits.max_steps,
             compactions=compactions,
             verifications=verifications,
+            verification_artifacts=tuple(verification_artifacts),
             summary=final_summary,
         )
 
@@ -719,6 +771,7 @@ class LocalCodingAgent:
         steps: int,
         compactions: int,
         verifications: int,
+        verification_artifacts: tuple[ArtifactRef, ...],
         summary: str | None,
     ) -> AgentResult:
         final = snapshot_workspace(workspace)
@@ -733,6 +786,7 @@ class LocalCodingAgent:
             workspace_state_after=final.state_hash,
             changed_paths=final.changed_paths,
             artifact_path=str(store.root),
+            verification_artifacts=verification_artifacts,
             summary=summary,
         )
         payload = result.to_dict()
@@ -786,6 +840,15 @@ def _verification_event(
         "criteria": receipt.to_dict()["criteria"],
         "commands": commands,
     }
+
+
+def _receipt_reference(
+    verifier: VerificationPort,
+    run_id: str,
+) -> ArtifactRef:
+    if not isinstance(verifier, VerificationEvidencePort):
+        raise RuntimeError("verification port did not expose a receipt artifact")
+    return verifier.receipt_reference(run_id)
 
 
 def _require_criterion_coverage(

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 import stat
 import subprocess
@@ -8,9 +7,10 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from sisyphus_harness.deadline import MonotonicDeadline
 from sisyphus_harness.tools import ToolError, WorkspaceTools
 
-from .helpers import create_git_repo, run_git
+from .helpers import create_git_repo
 
 
 class WorkspaceToolsTests(unittest.TestCase):
@@ -24,6 +24,17 @@ class WorkspaceToolsTests(unittest.TestCase):
             max_file_bytes=4096,
             max_output_chars=2000,
         )
+
+    def test_expired_global_deadline_blocks_tool_execution(self) -> None:
+        tools = WorkspaceTools(
+            self.repository,
+            max_file_bytes=4096,
+            max_output_chars=2000,
+            deadline=MonotonicDeadline(1.0, _clock=lambda: 2.0),
+        )
+
+        with self.assertRaisesRegex(ToolError, "deadline exceeded"):
+            tools.execute("list_files", {})
 
     def test_list_read_and_search_are_bounded_read_only_tools(self) -> None:
         (self.repository / "tracked.txt").write_text(
@@ -118,6 +129,90 @@ class WorkspaceToolsTests(unittest.TestCase):
         self.assertTrue(outcome.output["created"])
         self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o644)
 
+    def test_writes_reject_ignored_and_lexically_ambiguous_paths(self) -> None:
+        (self.repository / ".gitignore").write_text(
+            "generated/\n*.secret\n",
+            encoding="utf-8",
+        )
+
+        for relative in (
+            "generated/result.txt",
+            "credential.secret",
+            "src/../alias.py",
+            "./alias.py",
+        ):
+            with self.subTest(relative=relative):
+                with self.assertRaisesRegex(
+                    ToolError,
+                    "not observable|relative to workspace",
+                ):
+                    self.tools.execute(
+                        "write_file",
+                        {
+                            "path": relative,
+                            "content": "hidden\n",
+                            "expected_sha256": None,
+                        },
+                    )
+
+        self.assertFalse((self.repository / "generated").exists())
+        self.assertFalse((self.repository / "credential.secret").exists())
+
+    def test_model_cannot_temporarily_unignore_a_hidden_write(self) -> None:
+        root_ignore = self.repository / ".gitignore"
+        root_ignore.write_text("generated/\n", encoding="utf-8")
+        nested_ignore = self.repository / "nested" / ".gitignore"
+        nested_ignore.parent.mkdir()
+        nested_ignore.write_text("generated/\n", encoding="utf-8")
+
+        for relative in (".gitignore", "nested/.gitignore"):
+            with self.subTest(relative=relative):
+                current = self.tools.execute("read_file", {"path": relative})
+                for tool, arguments in (
+                    (
+                        "write_file",
+                        {
+                            "path": relative,
+                            "content": "# temporarily visible\n",
+                            "expected_sha256": current.output["sha256"],
+                        },
+                    ),
+                    (
+                        "replace_text",
+                        {
+                            "path": relative,
+                            "old": "generated/",
+                            "new": "# temporarily visible",
+                            "expected_sha256": current.output["sha256"],
+                        },
+                    ),
+                    (
+                        "delete_file",
+                        {
+                            "path": relative,
+                            "expected_sha256": current.output["sha256"],
+                        },
+                    ),
+                ):
+                    with self.subTest(relative=relative, tool=tool):
+                        with self.assertRaisesRegex(
+                            ToolError,
+                            "ignore controls are protected",
+                        ):
+                            self.tools.execute(tool, arguments)
+
+        with self.assertRaisesRegex(ToolError, "not observable"):
+            self.tools.execute(
+                "write_file",
+                {
+                    "path": "generated/result.txt",
+                    "content": "hidden\n",
+                    "expected_sha256": None,
+                },
+            )
+        self.assertEqual(root_ignore.read_text(encoding="utf-8"), "generated/\n")
+        self.assertFalse((self.repository / "generated").exists())
+
     def test_replace_and_delete_reject_stale_hash(self) -> None:
         read = self.tools.execute("read_file", {"path": "tracked.txt"})
         current_hash = read.output["sha256"]
@@ -173,6 +268,46 @@ class WorkspaceToolsTests(unittest.TestCase):
                         },
                     )
         self.assertEqual(outside.read_text(encoding="utf-8"), "outside\n")
+
+    def test_read_rejects_symlink_alias_into_git_state(self) -> None:
+        alias = self.repository / "git-config-alias"
+        alias.symlink_to(".git/config")
+
+        with self.assertRaisesRegex(ToolError, "resolves into protected state"):
+            self.tools.execute("read_file", {"path": alias.name})
+
+    def test_search_skips_deleted_tracked_files(self) -> None:
+        (self.repository / "kept.txt").write_text("needle\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "add", "kept.txt"],
+            cwd=self.repository,
+            check=True,
+        )
+        subprocess.run(
+            ["git", "commit", "-m", "add search fixture"],
+            cwd=self.repository,
+            capture_output=True,
+            check=True,
+        )
+        (self.repository / "tracked.txt").unlink()
+
+        result = self.tools.execute("search_text", {"query": "needle"})
+
+        self.assertEqual(result.output["matches"][0]["path"], "kept.txt")
+        self.assertIn("tracked.txt", result.output["skipped_files"])
+
+    def test_raw_filesystem_failures_are_normalized(self) -> None:
+        (self.repository / "directory").mkdir()
+
+        with self.assertRaisesRegex(ToolError, "write_file filesystem operation failed"):
+            self.tools.execute(
+                "write_file",
+                {
+                    "path": "directory",
+                    "content": "not a directory replacement",
+                    "expected_sha256": None,
+                },
+            )
 
     def test_replace_requires_exactly_one_old_fragment(self) -> None:
         path = self.repository / "tracked.txt"
@@ -428,6 +563,13 @@ class WorkspaceToolsTests(unittest.TestCase):
                 self.tools.execute("list_files", {})
             with self.assertRaisesRegex(ToolError, "repository unavailable"):
                 self.tools.execute("search_text", {"query": "baseline"})
+
+        with patch(
+            "sisyphus_harness.tools.subprocess.run",
+            side_effect=subprocess.TimeoutExpired(("git", "ls-files"), 15),
+        ):
+            with self.assertRaisesRegex(ToolError, "operation timed out"):
+                self.tools.execute("list_files", {})
 
     def test_operator_control_file_is_readable_but_not_mutable(self) -> None:
         config = self.repository / "sisyphus-harness.toml"

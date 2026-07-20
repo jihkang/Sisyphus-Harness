@@ -38,6 +38,15 @@ class ErrorProvider:
         raise ProviderError("local model unavailable")
 
 
+class RecordingDeadlineProvider:
+    def __init__(self) -> None:
+        self.timeouts: list[float] = []
+
+    def complete_with_timeout(self, messages, *, timeout_seconds) -> ChatResponse:
+        self.timeouts.append(timeout_seconds)
+        return ChatResponse(content=finish("bounded"))
+
+
 def decision(tool: str, arguments: dict[str, object]) -> str:
     return json.dumps(
         {
@@ -581,6 +590,23 @@ class AgentTests(unittest.TestCase):
         )
         self.assertFalse(exhausted.success)
         self.assertEqual(exhausted.reason, "step budget exhausted")
+
+    def test_agent_propagates_global_deadline_to_provider(self) -> None:
+        provider = RecordingDeadlineProvider()
+        result = self.build_agent(
+            provider,
+            limits=AgentLimits(max_steps=1, max_runtime_seconds=2),
+        ).run(
+            self.repository,
+            AgentTask("Fix add().", ("tests pass",)),
+            (self.command,),
+            run_id="deadline-provider",
+        )
+
+        self.assertFalse(result.success)
+        self.assertEqual(len(provider.timeouts), 1)
+        self.assertGreater(provider.timeouts[0], 0)
+        self.assertLessEqual(provider.timeouts[0], 2)
 
     def test_intermediate_verification_runs_at_mutation_cadence(self) -> None:
         original = "def add(left, right):\n    return left - right\n"

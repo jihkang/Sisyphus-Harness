@@ -5,11 +5,12 @@ from pathlib import Path
 
 from ..agent import LocalCodingAgent
 from ..config import AgentLimits
+from ..contracts.artifacts import ArtifactRef
 from ..contracts.agent import AgentResult, AgentTask
 from ..contracts.policy import CandidatePolicy
 from ..contracts.verification import CommandSpec, VerificationReceipt
 from ..ports.agent_run import AgentRunPort
-from ..ports.verification import VerificationPort
+from ..ports.verification import VerificationEvidencePort, VerificationPort
 from ..provider import ChatProvider
 from ..verifier import BoundedVerifier
 
@@ -28,8 +29,28 @@ class InProcessVerificationAdapter:
         commands: tuple[CommandSpec, ...],
         *,
         run_id: str | None = None,
+        request_digest: str | None = None,
+        deadline_monotonic: float | None = None,
     ) -> VerificationReceipt:
-        return self.delegate.verify(workspace, commands, run_id=run_id)
+        if request_digest is None and deadline_monotonic is None:
+            return self.delegate.verify(workspace, commands, run_id=run_id)
+        return self.delegate.verify(
+            workspace,
+            commands,
+            run_id=run_id,
+            request_digest=request_digest,
+            deadline_monotonic=deadline_monotonic,
+        )
+
+    def receipt_reference(self, run_id: str) -> ArtifactRef:
+        if not isinstance(self.delegate, VerificationEvidencePort):
+            raise TypeError("verification delegate does not expose evidence")
+        return self.delegate.receipt_reference(run_id)
+
+    def read_receipt(self, reference: ArtifactRef) -> VerificationReceipt:
+        if not isinstance(self.delegate, VerificationEvidencePort):
+            raise TypeError("verification delegate does not expose evidence")
+        return self.delegate.read_receipt(reference)
 
 
 @dataclass(slots=True)

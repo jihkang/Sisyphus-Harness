@@ -9,6 +9,7 @@ from sisyphus_harness.authority import (
     authority_database_path,
     authority_root,
     git_common_dir,
+    knowledge_index_path,
 )
 
 from .helpers import create_git_repo, run_git
@@ -30,6 +31,10 @@ class AuthorityTests(unittest.TestCase):
             self.assertEqual(
                 authority_database_path(worktree).parent,
                 authority_root(worktree),
+            )
+            self.assertEqual(
+                knowledge_index_path(worktree),
+                authority_root(worktree) / "knowledge-index.sqlite3",
             )
 
     def test_non_git_directory_is_rejected(self) -> None:

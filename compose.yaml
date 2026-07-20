@@ -1,0 +1,38 @@
+name: sisyphus-harness
+
+services:
+  verifier:
+    build:
+      context: .
+      dockerfile: docker/verifier.Dockerfile
+    image: sisyphus-harness-verifier:local
+    user: "${SISYPHUS_UID:-65532}:${SISYPHUS_GID:-65532}"
+    network_mode: none
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 64
+    mem_limit: 512m
+    cpus: 1.0
+    environment:
+      PYTHONDONTWRITEBYTECODE: "1"
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=128m,uid=${SISYPHUS_UID:-65532},gid=${SISYPHUS_GID:-65532}
+      - /work:rw,exec,nosuid,nodev,size=512m,uid=${SISYPHUS_UID:-65532},gid=${SISYPHUS_GID:-65532}
+    volumes:
+      - ${SISYPHUS_BUNDLE_STORE:?set SISYPHUS_BUNDLE_STORE}:/bundles:ro
+      - ${SISYPHUS_VERIFICATION_STAGING:?set SISYPHUS_VERIFICATION_STAGING}:/artifacts:rw
+      - ${SISYPHUS_VERIFICATION_REQUEST:?set SISYPHUS_VERIFICATION_REQUEST}:/request.json:ro
+    command:
+      - --request
+      - /request.json
+      - --bundle-store
+      - /bundles
+      - --artifact-root
+      - /artifacts
+      - --work-root
+      - /work
+      - --result
+      - /artifacts/service-results/result.json

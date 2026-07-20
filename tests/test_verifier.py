@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
+import signal
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -118,6 +121,114 @@ class VerifierTests(unittest.TestCase):
         self.assertTrue(receipt.commands[0].timed_out)
         self.assertEqual(receipt.commands[0].failure_category, "timeout")
         self.assertLess(receipt.commands[0].duration_ms, 5000)
+
+    def test_global_deadline_clamps_command_timeout(self) -> None:
+        started = time.monotonic()
+        receipt = self.verifier.verify(
+            self.repository,
+            (command("deadline", "import time; time.sleep(30)", timeout=10),),
+            run_id="global-deadline",
+            deadline_monotonic=started + 0.1,
+        )
+
+        self.assertFalse(receipt.passed)
+        self.assertTrue(receipt.commands[0].timed_out)
+        self.assertLess(time.monotonic() - started, 3)
+
+    @unittest.skipIf(os.name == "nt", "POSIX process groups are required")
+    def test_active_same_group_descendant_fails_and_is_killed(self) -> None:
+        late_marker = self.repository / "late-descendant-write"
+        child_code = (
+            "import sys,time; from pathlib import Path; "
+            "time.sleep(0.6); Path(sys.argv[1]).write_text('late')"
+        )
+        parent_code = (
+            "import subprocess,sys; "
+            "subprocess.Popen([sys.executable, '-c', sys.argv[1], sys.argv[2]], "
+            "stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, "
+            "stderr=subprocess.DEVNULL, close_fds=True)"
+        )
+
+        started = time.monotonic()
+        receipt = self.verifier.verify(
+            self.repository,
+            (
+                command(
+                    "descendant",
+                    parent_code,
+                    arguments=(child_code, str(late_marker)),
+                ),
+            ),
+            run_id="active-descendant",
+        )
+
+        self.assertFalse(receipt.passed)
+        self.assertEqual(receipt.commands[0].exit_code, 0)
+        self.assertEqual(receipt.commands[0].failure_category, "process_leak")
+        self.assertIn("descendant processes", receipt.commands[0].error)
+        self.assertLess(time.monotonic() - started, 3)
+        time.sleep(0.8)
+        self.assertFalse(late_marker.exists())
+
+    @unittest.skipIf(os.name == "nt", "POSIX session isolation is required")
+    def test_open_pipe_from_detached_descendant_fails_closed_without_hanging(self) -> None:
+        parent_code = (
+            "import subprocess,sys; "
+            "child=subprocess.Popen([sys.executable, '-c', "
+            "'import time; time.sleep(30)'], start_new_session=True); "
+            "print(child.pid, flush=True)"
+        )
+        started = time.monotonic()
+        receipt = self.verifier.verify(
+            self.repository,
+            (command("detached-pipe", parent_code),),
+            run_id="detached-open-pipe",
+        )
+
+        result = receipt.commands[0]
+        stdout = self.artifacts / "detached-open-pipe" / result.stdout_path
+        child_pid = int(stdout.read_text(encoding="utf-8").strip())
+        self.addCleanup(_best_effort_kill, child_pid)
+        self.assertFalse(receipt.passed)
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(result.failure_category, "process_leak")
+        self.assertLess(time.monotonic() - started, 3)
+
+    def test_combined_output_limit_kills_command_and_bounds_artifacts(self) -> None:
+        verifier = BoundedVerifier(self.artifacts, max_output_bytes=1024)
+        receipt = verifier.verify(
+            self.repository,
+            (
+                command(
+                    "noisy",
+                    "import sys; sys.stdout.write('x' * 100000); "
+                    "sys.stderr.write('y' * 100000)",
+                ),
+            ),
+            run_id="output-limit",
+        )
+
+        result = receipt.commands[0]
+        stdout = self.artifacts / "output-limit" / result.stdout_path
+        stderr = self.artifacts / "output-limit" / result.stderr_path
+        self.assertFalse(receipt.passed)
+        self.assertEqual(result.failure_category, "output_limit")
+        self.assertLessEqual(stdout.stat().st_size + stderr.stat().st_size, 1024)
+
+    def test_thread_output_capture_fallback_records_complete_output(self) -> None:
+        with patch("sisyphus_harness.verifier._USE_THREAD_CAPTURE", True):
+            receipt = self.verifier.verify(
+                self.repository,
+                (command("thread-capture", "print('thread output')"),),
+                run_id="thread-capture",
+            )
+
+        result = receipt.commands[0]
+        output = (self.artifacts / "thread-capture" / result.stdout_path).read_text(
+            encoding="utf-8"
+        )
+        self.assertTrue(receipt.passed)
+        self.assertEqual(output.strip(), "thread output")
 
     def test_command_mutation_invalidates_verification(self) -> None:
         receipt = self.verifier.verify(
@@ -277,6 +388,13 @@ class VerifierTests(unittest.TestCase):
             / receipt.commands[0].stderr_path
         ).read_text(encoding="utf-8")
         self.assertIn("failed to start", stderr)
+
+
+def _best_effort_kill(process_id: int) -> None:
+    try:
+        os.kill(process_id, signal.SIGKILL)
+    except ProcessLookupError:
+        pass
 
 
 if __name__ == "__main__":

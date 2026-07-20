@@ -3,21 +3,25 @@ from __future__ import annotations
 from dataclasses import replace
 import hashlib
 import io
-import json
 import os
 from pathlib import Path
 import stat
+import sys
 import tarfile
 import tempfile
 import unittest
+from unittest.mock import patch
 
-from sisyphus_harness.contracts import WorkspaceBundleRef
+from sisyphus_harness.adapters.workspace_state import TreeHashWorkspaceStateAdapter
+from sisyphus_harness.contracts import CommandSpec, WorkspaceBundleRef
 from sisyphus_harness.infra.workspace_bundle import (
     FilesystemWorkspaceBundleStore,
     WorkspaceBundleError,
+    _add_file,
     workspace_tree_hash,
 )
 from sisyphus_harness.workspace import snapshot_workspace
+from sisyphus_harness.verifier import BoundedVerifier
 
 from .helpers import create_git_repo, run_git
 
@@ -83,6 +87,64 @@ class WorkspaceBundleTests(unittest.TestCase):
         self.assertNotEqual(staged.bundle_id, unstaged.bundle_id)
         self.assertEqual(staged.tree_hash, unstaged.tree_hash)
 
+    def test_materialized_tree_adapter_supports_verification_without_git(self) -> None:
+        ref = self.store.create(self.repository)
+        destination = self.root / "verifier-workspace"
+        self.store.materialize(ref, destination)
+        adapter = TreeHashWorkspaceStateAdapter(ref.source_commit_sha)
+        verifier = BoundedVerifier(
+            self.root / "tree-verification",
+            workspace_state=adapter,
+        )
+
+        receipt = verifier.verify(
+            destination,
+            (
+                CommandSpec(
+                    name="read-only",
+                    argv=(sys.executable, "-c", "from pathlib import Path; Path('tracked.txt').read_text()"),
+                    timeout_seconds=5,
+                    criteria=("workspace is readable",),
+                ),
+            ),
+            run_id="tree-read-only",
+        )
+
+        self.assertTrue(receipt.passed)
+        self.assertEqual(receipt.workspace_state_before, ref.tree_hash)
+        self.assertEqual(receipt.workspace_state_after, ref.tree_hash)
+        self.assertEqual(receipt.worktree_commit_sha, ref.source_commit_sha)
+
+    def test_materialized_tree_adapter_detects_verifier_mutation(self) -> None:
+        ref = self.store.create(self.repository)
+        destination = self.root / "mutating-verifier-workspace"
+        self.store.materialize(ref, destination)
+        verifier = BoundedVerifier(
+            self.root / "mutating-tree-verification",
+            workspace_state=TreeHashWorkspaceStateAdapter(ref.source_commit_sha),
+        )
+
+        receipt = verifier.verify(
+            destination,
+            (
+                CommandSpec(
+                    name="mutating",
+                    argv=(
+                        sys.executable,
+                        "-c",
+                        "from pathlib import Path; Path('tracked.txt').write_text('changed\\n')",
+                    ),
+                    timeout_seconds=5,
+                    criteria=("workspace remains immutable",),
+                ),
+            ),
+            run_id="tree-mutation",
+        )
+
+        self.assertFalse(receipt.passed)
+        self.assertFalse(receipt.workspace_unchanged)
+        self.assertEqual(receipt.commands[0].failure_category, "workspace_mutation")
+
     def test_reference_parser_is_strict_and_normalizes_changed_paths(self) -> None:
         ref = self.store.create(self.repository)
         payload = ref.to_dict()
@@ -133,6 +195,69 @@ class WorkspaceBundleTests(unittest.TestCase):
                 self.root / "small-entry-store",
                 max_entries=1,
             ).create(self.repository)
+
+        with self.assertRaisesRegex(WorkspaceBundleError, "manifest exceeds"):
+            FilesystemWorkspaceBundleStore(
+                self.root / "small-manifest-store",
+                max_manifest_bytes=100,
+            ).create(self.repository)
+
+    def test_large_manifest_round_trips_at_default_limits(self) -> None:
+        files = self.repository / "many"
+        files.mkdir()
+        for index in range(7000):
+            (files / f"{index:05d}.txt").touch()
+        run_git(self.repository, "add", "many")
+        run_git(self.repository, "commit", "-q", "-m", "add many files")
+
+        ref = self.store.create(self.repository)
+        destination = self.root / "large-materialized"
+        materialized = self.store.materialize(ref, destination)
+
+        self.assertEqual(ref.entry_count, 7001)
+        self.assertEqual(materialized, ref.tree_hash)
+        self.assertEqual(len(list((destination / "many").iterdir())), 7000)
+
+    def test_source_file_replacement_between_stat_and_open_is_rejected(self) -> None:
+        source = self.repository / "tracked.txt"
+        original = source.lstat()
+        source.unlink()
+        source.write_text("replacement\n", encoding="utf-8")
+
+        with tarfile.open(self.root / "race.tar", mode="w") as archive:
+            with self.assertRaisesRegex(WorkspaceBundleError, "changed while bundling"):
+                _add_file(
+                    archive,
+                    source,
+                    "tracked.txt",
+                    original,
+                    max_file_bytes=1024,
+                )
+
+    def test_archive_and_store_directory_are_synced_before_reference(self) -> None:
+        with (
+            patch(
+                "sisyphus_harness.infra.workspace_bundle._fsync_file",
+                wraps=__import__(
+                    "sisyphus_harness.infra.workspace_bundle",
+                    fromlist=["_fsync_file"],
+                )._fsync_file,
+            ) as fsync_file,
+            patch(
+                "sisyphus_harness.infra.workspace_bundle._fsync_directory",
+                wraps=__import__(
+                    "sisyphus_harness.infra.workspace_bundle",
+                    fromlist=["_fsync_directory"],
+                )._fsync_directory,
+            ) as fsync_directory,
+        ):
+            ref = self.store.create(self.repository)
+
+        fsync_file.assert_called_once()
+        fsync_directory.assert_called_once_with(self.store_root)
+        self.assertTrue(
+            (self.store_root / f"{ref.archive_sha256.removeprefix('sha256:')}.json").is_file()
+        )
         with self.assertRaisesRegex(WorkspaceBundleError, "file exceeds"):
             FilesystemWorkspaceBundleStore(
                 self.root / "small-file-store",

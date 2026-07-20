@@ -5,7 +5,11 @@ from enum import StrEnum
 from typing import Any
 
 from .contracts.codec import WireModel
-from .contracts.verification import CommandResult, CommandSpec, VerificationReceipt
+from .contracts.verification import (
+    CommandResult as CommandResult,
+    CommandSpec as CommandSpec,
+    VerificationReceipt as VerificationReceipt,
+)
 
 
 class JobStatus(StrEnum):

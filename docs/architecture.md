@@ -20,7 +20,8 @@ control idempotent jobs, leases, heartbeats, and terminal transitions.
 
 Expose six repository-local file tools. Paths are contained after resolution,
 Git, authority paths, and the configuration loaded for a run are protected from
-model writes, existing writes require a content hash, and writes are atomic.
+model writes, lexically ambiguous and Git-ignored write targets are rejected,
+existing writes require a content hash, and writes are atomic.
 Workspace snapshots bind a commit SHA to staged, unstaged, and untracked
 content.
 
@@ -30,11 +31,30 @@ Run the local coding loop. The provider must return exactly one JSON decision.
 The harness controls observation, reflection, compaction, tool execution,
 stagnation detection, budgets, and final verification.
 
-`verifier.py`
+`verifier.py`, `services/verifier.py`, and `adapters/docker_verifier.py`
 
 Executes operator-defined argv without a shell. It records full stdout and
 stderr, executable identity, timeout and exit state, and before/after workspace
 hashes. A verifier that mutates the workspace cannot produce a passing receipt.
+The bundle service verifies an immutable workspace reference. The optional
+Docker transport runs that service with no network and bounded resources, gives
+it only the requested archive/reference pair in a fresh read-only bundle view
+and a fresh writable staging directory, bounds combined transport output, validates
+the source objects and receipt on the host, and atomically publishes a validated run.
+
+`contracts/evidence_contract.py`, `evidence_contract.py`, and
+`services/evidence_contract.py`
+
+Define immutable evidence selectors, clauses, bounded predicate trees, and
+three-valued evaluation. Control independently verifies the exact Worker output
+bundle, re-reads the digest-bound receipt artifact, normalizes command facts,
+and evaluates the contract without consulting the Agent success Boolean.
+
+`contracts/knowledge.py`, `knowledge_graph.py`, and `infra/knowledge_index.py`
+
+Provide a rebuildable candidate-only knowledge graph. Search, dependency
+inspection, and next-step projections are deterministic and revision-bound, but
+have no Claim, Gap, Task admission, dispatch, or completion authority.
 
 `benchmarks.py`, `evolution.py`, and `policy.py`
 
@@ -45,10 +65,12 @@ candidates, and require a signed operator approval before activation.
 `cli.py` and `worker.py`
 
 Provide direct commands and leased queue execution. Workers load one immutable
-job payload, heartbeat the lease, and write exactly one terminal queue result.
-Lease ownership fences the database transition, but repository mutation remains
-at-least-once unless the operator supplies isolated worktrees or an external
-per-repository lock.
+job payload containing the input workspace bundle and effective config/policy
+snapshot, heartbeat the lease, materialize an isolated per-attempt repository,
+publish an output bundle, and write exactly one terminal queue result. Lease
+ownership fences the database transition; an expired attempt cannot mutate the
+operator's source repository because its workspace is disposable authority
+state.
 
 ## Authority Flow
 
@@ -56,15 +78,18 @@ per-repository lock.
 operator config
       |
       v
-queue lease or direct run
+submit-time config/policy + workspace bundle
       |
       v
-bounded model decision -> contained file tool -> step receipt
+isolated Worker attempt -> bounded model decision -> contained file tool
       |                                      |
       +---------------- repeated ------------+
       |
       v
-operator verifier argv -> atomically persisted receipt -> result
+output bundle -> independent verifier -> authoritative receipt re-read
+      |
+      v
+Control EvidenceContract evaluation (Agent success is diagnostic only)
       |
       v
 offline benchmark/evolution -> proposed candidate
@@ -86,4 +111,6 @@ All authority data is rooted at:
 ```
 
 Linked worktrees therefore share queue and policy authority. Agent workspaces
-cannot reach this directory through the provided tools.
+cannot reach this directory through the provided tools. The same root also owns
+the rebuildable `knowledge-index.sqlite3`, content-addressed workspace bundles,
+disposable attempt workspaces, and Agent/verification/evolution artifacts.

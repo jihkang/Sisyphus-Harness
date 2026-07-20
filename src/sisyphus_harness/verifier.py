@@ -2,27 +2,67 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 import hashlib
+import math
 import os
 from pathlib import Path
 import re
+import selectors
 import shutil
 import signal
 import subprocess
+import threading
 import time
+from typing import BinaryIO
 import uuid
 
-from .contracts.verification import CommandResult, CommandSpec, VerificationReceipt
+from .contracts.artifacts import ArtifactRef
+from .contracts.verification import (
+    CommandResult,
+    CommandSpec,
+    VerificationReceipt,
+    VerificationRequest,
+)
+from .workspace_state_adapters import GitWorkspaceStateAdapter
+from .infra.verification_evidence import FilesystemVerificationEvidenceStore
+from .ports.workspace_state import WorkspaceStatePort
 from .receipts import write_json_atomic, write_text_atomic
-from .workspace import contained_path, snapshot_workspace
+from .workspace import contained_path
 
 
 class VerificationError(RuntimeError):
     pass
 
 
+_OUTPUT_DRAIN_GRACE_SECONDS = 0.5
+_PROCESS_CLEANUP_SECONDS = 1.0
+_PROCESS_POLL_SECONDS = 0.05
+_USE_THREAD_CAPTURE = os.name == "nt"
+
+
 class BoundedVerifier:
-    def __init__(self, artifact_root: Path) -> None:
+    def __init__(
+        self,
+        artifact_root: Path,
+        *,
+        workspace_state: WorkspaceStatePort | None = None,
+        max_output_bytes: int = 8 * 1024 * 1024,
+    ) -> None:
+        if (
+            isinstance(max_output_bytes, bool)
+            or not isinstance(max_output_bytes, int)
+            or max_output_bytes <= 0
+        ):
+            raise ValueError("verification output limit must be positive")
         self.artifact_root = artifact_root
+        self.evidence_store = FilesystemVerificationEvidenceStore(artifact_root)
+        self.workspace_state = workspace_state or GitWorkspaceStateAdapter()
+        self.max_output_bytes = max_output_bytes
+
+    def receipt_reference(self, run_id: str) -> ArtifactRef:
+        return self.evidence_store.receipt_reference(run_id)
+
+    def read_receipt(self, reference: ArtifactRef) -> VerificationReceipt:
+        return self.evidence_store.read_receipt(reference)
 
     def verify(
         self,
@@ -30,16 +70,20 @@ class BoundedVerifier:
         commands: tuple[CommandSpec, ...],
         *,
         run_id: str | None = None,
+        request_digest: str | None = None,
+        deadline_monotonic: float | None = None,
     ) -> VerificationReceipt:
         if not commands:
             raise VerificationError("verification requires at least one command")
         names = [command.name for command in commands]
         if len(set(names)) != len(names):
             raise VerificationError("verification command names must be unique")
+        if deadline_monotonic is not None and not math.isfinite(deadline_monotonic):
+            raise VerificationError("verification deadline must be finite")
         root = workspace.resolve()
         if not root.is_dir():
             raise VerificationError(f"verification workspace does not exist: {workspace}")
-        baseline = snapshot_workspace(root)
+        baseline = self.workspace_state.snapshot(root)
         resolved_run_id = run_id or f"verify-{uuid.uuid4().hex}"
         if (
             re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}", resolved_run_id)
@@ -56,12 +100,25 @@ class BoundedVerifier:
         if run_dir.exists():
             raise VerificationError(f"verification run already exists: {resolved_run_id}")
         run_dir.mkdir(parents=True)
+        request = VerificationRequest(
+            run_id=resolved_run_id,
+            workspace=str(root),
+            workspace_state_before=baseline.state_hash,
+            commands=commands,
+        )
+        write_json_atomic(run_dir / "request.json", request.to_dict())
         started_at = _utc_now()
         results = tuple(
-            self._run_command(root, run_dir, index, command)
+            self._run_command(
+                root,
+                run_dir,
+                index,
+                command,
+                deadline_monotonic=deadline_monotonic,
+            )
             for index, command in enumerate(commands)
         )
-        final = snapshot_workspace(root)
+        final = self.workspace_state.snapshot(root)
         workspace_unchanged = baseline.state_hash == final.state_hash
         receipt = VerificationReceipt(
             run_id=resolved_run_id,
@@ -74,6 +131,7 @@ class BoundedVerifier:
             workspace_state_before=baseline.state_hash,
             workspace_state_after=final.state_hash,
             workspace_unchanged=workspace_unchanged,
+            request_digest=request_digest or request.request_digest,
         )
         write_json_atomic(run_dir / "receipt.json", receipt.to_dict())
         return receipt
@@ -84,8 +142,10 @@ class BoundedVerifier:
         run_dir: Path,
         index: int,
         command: CommandSpec,
+        *,
+        deadline_monotonic: float | None,
     ) -> CommandResult:
-        before = snapshot_workspace(workspace)
+        before = self.workspace_state.snapshot(workspace)
         command_dir = run_dir / f"{index:02d}-{_safe_name(command.name)}"
         command_dir.mkdir()
         stdout_path = command_dir / "stdout.txt"
@@ -97,7 +157,7 @@ class BoundedVerifier:
         except VerificationError as exc:
             write_text_atomic(stdout_path, "")
             write_text_atomic(stderr_path, f"{exc}\n")
-            after = snapshot_workspace(workspace)
+            after = self.workspace_state.snapshot(workspace)
             return CommandResult(
                 name=command.name,
                 argv=command.argv,
@@ -128,17 +188,26 @@ class BoundedVerifier:
             popen_kwargs["start_new_session"] = True
 
         started = time.monotonic()
+        timeout_seconds = command.timeout_seconds
+        if deadline_monotonic is not None:
+            timeout_seconds = max(
+                0.001,
+                min(timeout_seconds, deadline_monotonic - started),
+            )
         launch_error: str | None = None
         timed_out = False
+        process_leaked = False
+        output_limited = threading.Event()
         process: subprocess.Popen[bytes] | None = None
+        output_budget = _OutputBudget(self.max_output_bytes)
         with stdout_path.open("wb") as stdout_handle, stderr_path.open(
             "wb"
         ) as stderr_handle:
             try:
                 process = subprocess.Popen(
                     command.argv,
-                    stdout=stdout_handle,
-                    stderr=stderr_handle,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
                     **popen_kwargs,
                 )
             except OSError as exc:
@@ -147,29 +216,47 @@ class BoundedVerifier:
                 )
                 stderr_handle.write(f"{launch_error}\n".encode("utf-8"))
             if process is not None:
-                try:
-                    process.wait(timeout=command.timeout_seconds)
-                except subprocess.TimeoutExpired:
-                    timed_out = True
-                    _terminate_process_group(process)
-                    process.wait()
+                assert process.stdout is not None
+                assert process.stderr is not None
+                if _USE_THREAD_CAPTURE:
+                    timed_out, process_leaked = _capture_with_threads(
+                        process,
+                        stdout_handle,
+                        stderr_handle,
+                        output_budget,
+                        output_limited,
+                        timeout_seconds,
+                    )
+                else:
+                    timed_out, process_leaked = _capture_with_selector(
+                        process,
+                        stdout_handle,
+                        stderr_handle,
+                        output_budget,
+                        output_limited,
+                        timeout_seconds,
+                    )
             stdout_handle.flush()
             stderr_handle.flush()
             os.fsync(stdout_handle.fileno())
             os.fsync(stderr_handle.fileno())
         duration_ms = max(0, round((time.monotonic() - started) * 1000))
         exit_code = process.returncode if process is not None else None
-        after = snapshot_workspace(workspace)
+        after = self.workspace_state.snapshot(workspace)
         workspace_unchanged = before.state_hash == after.state_hash
         passed = (
             launch_error is None
             and not timed_out
+            and not output_limited.is_set()
+            and not process_leaked
             and exit_code == 0
             and workspace_unchanged
         )
         failure_category = _failure_category(
             passed=passed,
             timed_out=timed_out,
+            output_limited=output_limited.is_set(),
+            process_leaked=process_leaked,
             launch_error=launch_error,
             workspace_unchanged=workspace_unchanged,
             stdout_path=stdout_path,
@@ -191,7 +278,16 @@ class BoundedVerifier:
             workspace_state_after=after.state_hash,
             workspace_unchanged=workspace_unchanged,
             failure_category=failure_category,
-            error=launch_error,
+            error=(
+                f"verification output exceeded {self.max_output_bytes} bytes"
+                if output_limited.is_set()
+                else (
+                    "verification command left descendant processes or output "
+                    "pipes active after exit"
+                    if process_leaked
+                    else launch_error
+                )
+            ),
         )
 
 
@@ -219,6 +315,8 @@ def _failure_category(
     *,
     passed: bool,
     timed_out: bool,
+    output_limited: bool,
+    process_leaked: bool,
     launch_error: str | None,
     workspace_unchanged: bool,
     stdout_path: Path,
@@ -228,8 +326,12 @@ def _failure_category(
         return None
     if launch_error is not None:
         return "launch_error"
+    if output_limited:
+        return "output_limit"
     if timed_out:
         return "timeout"
+    if process_leaked:
+        return "process_leak"
     if not workspace_unchanged:
         return "workspace_mutation"
 
@@ -255,23 +357,258 @@ def _read_diagnostic_prefix(path: Path, limit: int = 65_536) -> str:
         return ""
 
 
-def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
+class _OutputBudget:
+    def __init__(self, limit: int) -> None:
+        self.remaining = limit
+        self.lock = threading.Lock()
+
+    def take(self, content: bytes) -> tuple[bytes, bool]:
+        with self.lock:
+            accepted = content[: self.remaining]
+            self.remaining -= len(accepted)
+            return accepted, len(accepted) != len(content)
+
+
+def _capture_with_selector(
+    process: subprocess.Popen[bytes],
+    stdout: BinaryIO,
+    stderr: BinaryIO,
+    budget: _OutputBudget,
+    exceeded: threading.Event,
+    timeout_seconds: float,
+) -> tuple[bool, bool]:
+    selector = selectors.DefaultSelector()
+    streams = (
+        (process.stdout, stdout),
+        (process.stderr, stderr),
+    )
+    try:
+        for source, destination in streams:
+            assert source is not None
+            os.set_blocking(source.fileno(), False)
+            selector.register(source, selectors.EVENT_READ, destination)
+    except BaseException:
+        _kill_process_group(process)
+        _wait_process(process, _PROCESS_CLEANUP_SECONDS)
+        for key in tuple(selector.get_map().values()):
+            _close_selector_stream(selector, key.fileobj)
+        selector.close()
+        raise
+
+    deadline = time.monotonic() + timeout_seconds
+    exit_observed_at: float | None = None
+    timed_out = False
+    process_leaked = False
+    try:
+        while True:
+            now = time.monotonic()
+            process_running = process.poll() is None
+            if process_running and now >= deadline:
+                timed_out = True
+                _terminate_process_group(process)
+                if not _wait_process(process, _PROCESS_CLEANUP_SECONDS):
+                    process_leaked = True
+                    _kill_process_group(process)
+                    if not _wait_process(process, _PROCESS_CLEANUP_SECONDS):
+                        return timed_out, process_leaked
+                continue
+
+            if not process_running:
+                if exit_observed_at is None:
+                    exit_observed_at = now
+                    # Reaping the group leader does not imply that the process
+                    # group is empty; descendants can outlive a successful parent.
+                    if _process_group_alive(process.pid):
+                        process_leaked = True
+                        _kill_process_group(process)
+                if not selector.get_map():
+                    break
+                # A descendant can escape the original group while retaining an
+                # output descriptor. Never wait indefinitely for that pipe's EOF.
+                if now - exit_observed_at >= _OUTPUT_DRAIN_GRACE_SECONDS:
+                    process_leaked = True
+                    _kill_process_group(process)
+                    break
+
+            wait_seconds = _PROCESS_POLL_SECONDS
+            if process_running:
+                wait_seconds = min(wait_seconds, max(0.0, deadline - now))
+            elif exit_observed_at is not None:
+                wait_seconds = min(
+                    wait_seconds,
+                    max(
+                        0.0,
+                        _OUTPUT_DRAIN_GRACE_SECONDS - (now - exit_observed_at),
+                    ),
+                )
+
+            if not selector.get_map():
+                _wait_process(process, wait_seconds)
+                continue
+            for key, _ in selector.select(wait_seconds):
+                source = key.fileobj
+                destination = key.data
+                try:
+                    chunk = os.read(source.fileno(), 64 * 1024)
+                except BlockingIOError:
+                    continue
+                except OSError:
+                    chunk = b""
+                if not chunk:
+                    _close_selector_stream(selector, source)
+                    continue
+                accepted, over_limit = budget.take(chunk)
+                if accepted:
+                    destination.write(accepted)
+                if over_limit and not exceeded.is_set():
+                    exceeded.set()
+                    _kill_process_group(process)
+                    if not _wait_process(process, _PROCESS_CLEANUP_SECONDS):
+                        process_leaked = True
+                        return timed_out, process_leaked
+    finally:
+        if process.poll() is None:
+            _kill_process_group(process)
+            _wait_process(process, _PROCESS_CLEANUP_SECONDS)
+        for key in tuple(selector.get_map().values()):
+            _close_selector_stream(selector, key.fileobj)
+        selector.close()
+    return timed_out, process_leaked
+
+
+def _close_selector_stream(
+    selector: selectors.BaseSelector,
+    source: BinaryIO,
+) -> None:
+    try:
+        selector.unregister(source)
+    except (KeyError, ValueError):
+        pass
+    try:
+        source.close()
+    except (OSError, ValueError):
+        pass
+
+
+def _capture_with_threads(
+    process: subprocess.Popen[bytes],
+    stdout: BinaryIO,
+    stderr: BinaryIO,
+    budget: _OutputBudget,
+    exceeded: threading.Event,
+    timeout_seconds: float,
+) -> tuple[bool, bool]:
+    assert process.stdout is not None
+    assert process.stderr is not None
+    readers = (
+        threading.Thread(
+            target=_capture_output,
+            args=(process.stdout, stdout, budget, exceeded, process),
+            daemon=True,
+        ),
+        threading.Thread(
+            target=_capture_output,
+            args=(process.stderr, stderr, budget, exceeded, process),
+            daemon=True,
+        ),
+    )
+    for reader in readers:
+        reader.start()
+    timed_out = not _wait_process(process, timeout_seconds)
+    if timed_out:
+        _terminate_process_group(process)
+    process_leaked = process.poll() is None
+    if process_leaked:
+        _kill_process_group(process)
+        _wait_process(process, _PROCESS_CLEANUP_SECONDS)
+
+    drain_deadline = time.monotonic() + _OUTPUT_DRAIN_GRACE_SECONDS
+    for reader in readers:
+        reader.join(timeout=max(0.0, drain_deadline - time.monotonic()))
+    if any(reader.is_alive() for reader in readers):
+        # Platforms without selectable subprocess pipes still fail closed when a
+        # descendant keeps an inherited output descriptor open.
+        process_leaked = True
+        _kill_process_group(process)
+    return timed_out, process_leaked
+
+
+def _capture_output(
+    source: BinaryIO,
+    destination: BinaryIO,
+    budget: _OutputBudget,
+    exceeded: threading.Event,
+    process: subprocess.Popen[bytes],
+) -> None:
+    try:
+        for chunk in iter(lambda: source.read(64 * 1024), b""):
+            accepted, over_limit = budget.take(chunk)
+            if accepted:
+                destination.write(accepted)
+            if over_limit and not exceeded.is_set():
+                exceeded.set()
+                _kill_process_group(process)
+    except (OSError, ValueError):
         return
-    if os.name == "nt":
-        process.terminate()
+    finally:
         try:
-            process.wait(timeout=1)
-        except subprocess.TimeoutExpired:
+            source.close()
+        except OSError:
+            pass
+
+
+def _kill_process_group(process: subprocess.Popen[bytes]) -> None:
+    try:
+        if os.name == "nt":
+            if process.poll() is None:
+                process.kill()
+        else:
+            os.killpg(process.pid, signal.SIGKILL)
+    except (PermissionError, ProcessLookupError):
+        return
+
+
+def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
+    if os.name == "nt":
+        if process.poll() is not None:
+            return
+        process.terminate()
+        if not _wait_process(process, _PROCESS_CLEANUP_SECONDS):
             process.kill()
+            _wait_process(process, _PROCESS_CLEANUP_SECONDS)
         return
     try:
         os.killpg(process.pid, signal.SIGTERM)
-        process.wait(timeout=1)
-    except ProcessLookupError:
+    except (PermissionError, ProcessLookupError):
         return
+    if not _wait_process(process, _PROCESS_CLEANUP_SECONDS):
+        try:
+            os.killpg(process.pid, signal.SIGKILL)
+        except (PermissionError, ProcessLookupError):
+            return
+        _wait_process(process, _PROCESS_CLEANUP_SECONDS)
+
+
+def _wait_process(process: subprocess.Popen[bytes], timeout: float) -> bool:
+    if process.poll() is not None:
+        return True
+    try:
+        process.wait(timeout=max(0.001, timeout))
     except subprocess.TimeoutExpired:
-        os.killpg(process.pid, signal.SIGKILL)
+        return False
+    return True
+
+
+def _process_group_alive(process_group_id: int) -> bool:
+    if os.name == "nt":
+        return False
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
 
 
 def _safe_name(value: str) -> str:

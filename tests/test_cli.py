@@ -547,6 +547,33 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(shown["candidate_hash"], candidate.candidate_hash)
 
+    def test_evolve_rejects_unsafe_id_before_rollout_construction(self) -> None:
+        self.write_full_config()
+        with (
+            patch(
+                "sisyphus_harness.cli.load_benchmark_dataset",
+                side_effect=[[{"id": "train"}], [{"id": "holdout"}]],
+            ),
+            patch("sisyphus_harness.cli.CodingAgentBenchmarkEvaluator") as evaluator,
+        ):
+            code, _, error = invoke(
+                [
+                    "evolve",
+                    "--repo",
+                    str(self.repository),
+                    "--train-dataset",
+                    "train.json",
+                    "--holdout-dataset",
+                    "holdout.json",
+                    "--evolution-id",
+                    "../escape",
+                ]
+            )
+
+        self.assertEqual(code, 2)
+        self.assertIn("unsafe", error["error"])
+        evaluator.assert_not_called()
+
     def test_policy_show_without_active_and_missing_active_selection(self) -> None:
         self.write_full_config()
         self.commit_all("add config")
@@ -592,6 +619,9 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertEqual(queued["kind"], "coding-agent")
+        self.assertRegex(queued["payload"]["config_sha256"], r"^sha256:[0-9a-f]{64}$")
+        self.assertIn("workspace_bundle", queued["payload"])
+        self.assertIn("candidate_hash", queued["payload"]["policy_snapshot"])
 
         class FakeWorker:
             def __init__(self, repo_root) -> None:

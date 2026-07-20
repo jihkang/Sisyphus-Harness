@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import math
 from pathlib import Path
 import tomllib
+from urllib.parse import urlsplit
 
 from .contracts.policy import CadencePolicy
 from .contracts.verification import CommandSpec
@@ -35,6 +36,23 @@ class ProviderSettings:
     def __post_init__(self) -> None:
         if not self.base_url.strip() or not self.model.strip():
             raise ValueError("provider base URL and model must be non-empty")
+        try:
+            parsed_url = urlsplit(self.base_url)
+            parsed_url.port
+        except ValueError as exc:
+            raise ValueError("provider base URL is invalid") from exc
+        if (
+            parsed_url.scheme not in {"http", "https"}
+            or parsed_url.hostname is None
+            or parsed_url.username is not None
+            or parsed_url.password is not None
+            or parsed_url.query
+            or parsed_url.fragment
+        ):
+            raise ValueError(
+                "provider base URL must be an HTTP(S) URL without credentials, "
+                "query, or fragment"
+            )
         if not math.isfinite(self.timeout_seconds) or self.timeout_seconds <= 0:
             raise ValueError("provider timeout must be positive and finite")
         if not math.isfinite(self.temperature) or not 0 <= self.temperature <= 2:

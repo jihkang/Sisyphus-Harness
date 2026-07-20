@@ -46,6 +46,12 @@ def authority_database_path(repo_root: Path) -> Path:
     return authority_root(repo_root) / "authority.sqlite3"
 
 
+def knowledge_index_path(repo_root: Path) -> Path:
+    """Return the rebuildable GraphRAG index path for this Git authority."""
+
+    return authority_root(repo_root) / "knowledge-index.sqlite3"
+
+
 def verification_artifact_root(repo_root: Path) -> Path:
     return authority_root(repo_root) / "artifacts" / "verification"
 
@@ -56,6 +62,14 @@ def agent_artifact_root(repo_root: Path) -> Path:
 
 def evolution_artifact_root(repo_root: Path) -> Path:
     return authority_root(repo_root) / "artifacts" / "evolution"
+
+
+def workspace_bundle_root(repo_root: Path) -> Path:
+    return authority_root(repo_root) / "artifacts" / "workspace-bundles"
+
+
+def attempt_workspace_root(repo_root: Path) -> Path:
+    return authority_root(repo_root) / "attempts"
 
 
 def policy_root(repo_root: Path) -> Path:

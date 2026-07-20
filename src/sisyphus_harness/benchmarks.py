@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import fnmatch
 import json
 import os
 from pathlib import Path
+import re
 import shutil
+import stat
 import subprocess
 import sys
 import uuid
@@ -15,7 +18,8 @@ from .config import AgentLimits
 from .contracts.agent import AgentTask
 from .contracts.evolution import EvaluationObservation
 from .contracts.policy import CandidatePolicy
-from .contracts.verification import CommandSpec
+from .contracts.verification import CommandSpec, VerificationReceipt
+from .infra.verification_evidence import FilesystemVerificationEvidenceStore
 from .ports.agent_run import AgentRunFactoryPort
 from .provider import ChatProvider
 from .workspace import contained_path
@@ -23,6 +27,10 @@ from .workspace import contained_path
 
 class BenchmarkError(RuntimeError):
     pass
+
+
+_SAFE_CASE_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,95}")
+_IGNORED_FIXTURE_NAMES = {".git", ".sisyphus-harness", "__pycache__"}
 
 
 @dataclass(frozen=True, slots=True)
@@ -138,7 +146,7 @@ class CodingAgentBenchmarkEvaluator:
         policy: CandidatePolicy,
         example: dict[str, Any],
     ) -> EvaluationObservation:
-        case_id = _required_string(example, "id")
+        case_id = validate_benchmark_case_id(_required_string(example, "id"))
         instruction = _required_string(example, "instruction")
         criteria_raw = example.get("acceptance_criteria")
         if not isinstance(criteria_raw, list) or not criteria_raw:
@@ -182,41 +190,44 @@ class CodingAgentBenchmarkEvaluator:
         )
         rollout_dir = self.rollout_root / rollout_id
         workspace = rollout_dir / "workspace"
-        shutil.copytree(
-            workspace_source,
-            workspace,
-            ignore=shutil.ignore_patterns(
-                ".git",
-                ".sisyphus-harness",
-                "__pycache__",
-                "*.pyc",
-                "*.pyo",
-            ),
-        )
+        verification_root = rollout_dir / "verification"
+        _copy_fixture(workspace_source, workspace)
         _initialize_git_repository(workspace)
         agent = self.agent_factory.create(
             policy=policy,
             agent_artifact_root=rollout_dir / "agent",
-            verification_artifact_root=rollout_dir / "verification",
+            verification_artifact_root=verification_root,
+        )
+        verification_commands = tuple(
+            CommandSpec(
+                name=f"benchmark-{case_id}-{name}",
+                argv=(sys.executable, str(script)),
+                timeout_seconds=float(timeout),
+                criteria=(criterion,),
+            )
+            for name, criterion, script in verifiers
         )
         result = agent.run(
             workspace,
             AgentTask(instruction, criteria),
-            tuple(
-                CommandSpec(
-                    name=f"benchmark-{case_id}-{name}",
-                    argv=(sys.executable, str(script)),
-                    timeout_seconds=float(timeout),
-                    criteria=(criterion,),
-                )
-                for name, criterion, script in verifiers
-            ),
+            verification_commands,
             run_id="agent",
         )
-        criterion_pass_rate = _latest_criterion_pass_rate(
-            Path(result.artifact_path),
-            criteria,
+        if not result.verification_artifacts:
+            raise BenchmarkError("agent result did not include verification evidence")
+        evidence_reference = result.verification_artifacts[-1]
+        receipt = FilesystemVerificationEvidenceStore(
+            verification_root
+        ).read_receipt(evidence_reference)
+        _validate_scoring_receipt(
+            receipt,
+            workspace=workspace,
+            result_workspace_state=result.workspace_state_after,
+            expected_criteria=criteria,
+            expected_commands=verification_commands,
         )
+        criterion_pass_rate = _criterion_pass_rate(receipt, criteria)
+        verified_success = result.success and receipt.passed
         step_efficiency = max(
             0.0,
             1.0 - max(0, result.steps - 1) / max(1, self.limits.max_steps - 1),
@@ -227,23 +238,25 @@ class CodingAgentBenchmarkEvaluator:
         )
         score = (
             0.70 * criterion_pass_rate
-            + 0.15 * float(result.success)
+            + 0.15 * float(verified_success)
             + 0.10 * step_efficiency
             + 0.05 * compaction_efficiency
         )
-        unsafe_reason = result.reason in {
+        unsafe_reason = not receipt.workspace_unchanged or result.reason in {
             "verification command mutated the workspace",
             "tool failed after mutating workspace",
         }
         return EvaluationObservation(
             score=score,
-            success=result.success,
+            success=verified_success,
             hard_gate_passed=not unsafe_reason,
             diagnostics={
                 "case_id": case_id,
                 "instruction": instruction,
                 "result": result.to_dict(),
                 "criterion_pass_rate": criterion_pass_rate,
+                "verification_evidence": evidence_reference.to_dict(),
+                "verification_receipt_digest": receipt.receipt_digest,
                 "trace_summary": _trace_summary(Path(result.artifact_path)),
                 "rollout_path": str(rollout_dir),
             },
@@ -255,37 +268,53 @@ class CodingAgentBenchmarkEvaluator:
         )
 
 
-def _latest_criterion_pass_rate(
-    agent_artifact: Path,
+def _criterion_pass_rate(
+    receipt: VerificationReceipt,
     expected_criteria: tuple[str, ...],
 ) -> float:
-    status: dict[str, bool] = {}
-    for step_path in sorted((agent_artifact / "steps").glob("*.json")):
-        try:
-            raw = json.loads(step_path.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            continue
-        event = raw.get("event")
-        if not isinstance(event, dict):
-            continue
-        verification_events = [event] if event.get("kind") == "verification" else []
-        followup = event.get("followup_verification")
-        if isinstance(followup, dict):
-            verification_events.append(followup)
-        for verification in verification_events:
-            criteria = verification.get("criteria")
-            if not isinstance(criteria, list):
-                continue
-            for item in criteria:
-                if not isinstance(item, dict):
-                    continue
-                criterion = item.get("criterion")
-                passed = item.get("passed")
-                if isinstance(criterion, str) and isinstance(passed, bool):
-                    status[criterion] = passed
+    status = {
+        criterion: command.passed
+        for command in receipt.commands
+        for criterion in command.criteria
+    }
     return sum(status.get(criterion) is True for criterion in expected_criteria) / len(
         expected_criteria
     )
+
+
+def _validate_scoring_receipt(
+    receipt: VerificationReceipt,
+    *,
+    workspace: Path,
+    result_workspace_state: str,
+    expected_criteria: tuple[str, ...],
+    expected_commands: tuple[CommandSpec, ...],
+) -> None:
+    receipt_command_profile = tuple(
+        (command.name, command.argv, command.criteria)
+        for command in receipt.commands
+    )
+    expected_command_profile = tuple(
+        (command.name, command.argv, command.criteria)
+        for command in expected_commands
+    )
+    if receipt_command_profile != expected_command_profile:
+        raise BenchmarkError(
+            "verification receipt commands do not match the benchmark request"
+        )
+    receipt_criteria = tuple(
+        criterion
+        for command in receipt.commands
+        for criterion in command.criteria
+    )
+    if receipt_criteria != expected_criteria:
+        raise BenchmarkError(
+            "verification receipt criteria do not match the benchmark case"
+        )
+    if Path(receipt.workspace) != workspace.resolve():
+        raise BenchmarkError("verification receipt workspace does not match rollout")
+    if receipt.workspace_state_after != result_workspace_state:
+        raise BenchmarkError("verification receipt does not attest the final workspace")
 
 
 def _trace_summary(agent_artifact: Path, *, limit: int = 64) -> dict[str, object]:
@@ -418,7 +447,7 @@ def _load_case(case_dir: Path) -> BenchmarkCase:
     ):
         raise BenchmarkError("benchmark timeout_seconds must be positive")
     return BenchmarkCase(
-        case_id=_required_string(raw, "id"),
+        case_id=validate_benchmark_case_id(_required_string(raw, "id")),
         instruction=_required_string(raw, "instruction"),
         acceptance_criteria=criteria,
         workspace_source=workspace,
@@ -456,6 +485,67 @@ def _initialize_git_repository(workspace: Path) -> None:
                 or completed.stdout.strip()
                 or f"git command failed: {' '.join(args)}"
             )
+
+
+def validate_benchmark_case_id(case_id: str) -> str:
+    normalized = case_id.strip()
+    if _SAFE_CASE_ID.fullmatch(normalized) is None or normalized in {".", ".."}:
+        raise BenchmarkError("benchmark case ID contains unsafe characters")
+    return normalized
+
+
+def _copy_fixture(source: Path, destination: Path) -> None:
+    root = source.resolve()
+    _validate_fixture_tree(root)
+    shutil.copytree(
+        root,
+        destination,
+        symlinks=True,
+        ignore=shutil.ignore_patterns(
+            ".git",
+            ".sisyphus-harness",
+            "__pycache__",
+            "*.pyc",
+            "*.pyo",
+        ),
+    )
+
+
+def _validate_fixture_tree(root: Path) -> None:
+    def visit(directory: Path) -> None:
+        with os.scandir(directory) as children:
+            entries = list(children)
+        for child in entries:
+            if child.name in _IGNORED_FIXTURE_NAMES or any(
+                fnmatch.fnmatch(child.name, pattern)
+                for pattern in ("*.pyc", "*.pyo")
+            ):
+                continue
+            path = Path(child.path)
+            metadata = path.lstat()
+            if stat.S_ISLNK(metadata.st_mode):
+                raw_target = os.readlink(path)
+                candidate = Path(raw_target)
+                if candidate.is_absolute():
+                    raise BenchmarkError(
+                        f"benchmark fixture symlink target must be relative: {path.name}"
+                    )
+                try:
+                    target = (path.parent / candidate).resolve(strict=False)
+                    target.relative_to(root)
+                except (RuntimeError, ValueError) as exc:
+                    raise BenchmarkError(
+                        f"benchmark fixture symlink escapes workspace: {path.name}"
+                    ) from exc
+            elif stat.S_ISDIR(metadata.st_mode):
+                visit(path)
+            elif not stat.S_ISREG(metadata.st_mode):
+                raise BenchmarkError(
+                    f"benchmark fixture contains unsupported entry: "
+                    f"{path.relative_to(root).as_posix()}"
+                )
+
+    visit(root)
 
 
 def _reject_unknown(
