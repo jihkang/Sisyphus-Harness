@@ -68,6 +68,14 @@ propagation, and Control-owned outcome publication.
 - opt-in real Docker suite: three tests passed against the locally rebuilt image;
 - current-head CI and merge evidence: pending at the time of this review.
 
+## Delivery Follow-up
+
+PR #11 tested head `c0650c7b9d24fde857524107f559833470176d55` with all five
+jobs passing in CI run `29848008998`, including the three real-Docker probes, and
+merged as `5d872bc6a064e5f5f36aa46df31813a4ca2d4608`. The living debt register therefore
+records `SH-VERIFY-001` and `SH-VERIFY-002` as `GREEN`; this dated review retains
+the pre-delivery validation statement above for chronology.
+
 ## Residual Risk
 
 1. Candidate code can read verifier assets mounted in its container namespace.

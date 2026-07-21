@@ -34,9 +34,9 @@ merged only after checks and review target the current head SHA.
   passed. Its gates cover schema migration, stale-attempt fencing, immutable
   rows, idempotent Control publication, contained composition, and CLI
   projection.
-- Slice C is implemented on its review branch with local and real-Docker gates
-  passing, including per-command containers without authority mounts and
-  host-created receipts; current-head CI and merge evidence remain pending.
+- Slice C merged in PR #11 at `5d872bc` after all five jobs in CI run
+  `29848008998` passed, including per-command containers without authority
+  mounts, three real-Docker probes, and host-created receipts.
 - Slices D through F remain open and must start from refreshed `main` after the
   preceding slice is merged.
 

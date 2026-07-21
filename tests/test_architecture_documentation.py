@@ -157,6 +157,37 @@ class ArchitectureDocumentationTests(unittest.TestCase):
         self.assertIn("29839229786", record)
         self.assertIn("8cccfef9e6726cb64623b9ba85d35ee69d2e6b8a", record)
 
+    def test_slice_c_status_is_bound_to_merged_head_evidence(self) -> None:
+        debt = DEBT_REGISTER.read_text(encoding="utf-8")
+        plan = (
+            REPO_ROOT
+            / "docs"
+            / "plans"
+            / "2026-07-22-verifier-command-isolation.md"
+        ).read_text(encoding="utf-8")
+        review = (
+            REPO_ROOT
+            / "docs"
+            / "reviews"
+            / "2026-07-22"
+            / "verifier-command-isolation.md"
+        ).read_text(encoding="utf-8")
+
+        for marker in (
+            "PR #11 at `5d872bc`",
+            "29848008998",
+            "SH-VERIFY-001",
+            "SH-VERIFY-002",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, debt)
+        self.assertNotIn("| `SH-VERIFY-001` | P0", debt)
+        self.assertNotIn("| `SH-VERIFY-002` | P0", debt)
+        self.assertIn("- Status: Complete", plan)
+        self.assertIn("5d872bc6a064e5f5f36aa46df31813a4ca2d4608", plan)
+        self.assertIn("c0650c7b9d24fde857524107f559833470176d55", review)
+        self.assertIn("29848008998", review)
+
     def test_relative_documentation_links_resolve(self) -> None:
         for document in sorted((REPO_ROOT / "docs").rglob("*.md")):
             content = document.read_text(encoding="utf-8")

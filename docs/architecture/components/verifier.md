@@ -79,8 +79,8 @@ command grants Agent access to the authority store.
 
 ## Open Debt And Evidence
 
-- `SH-VERIFY-001`: implementation and local Docker evidence exist; current-head CI and merge evidence remain.
-- `SH-VERIFY-002`: host-owned evidence and command isolation are implemented locally; current-head CI and merge evidence remain.
+- `SH-VERIFY-001` and `SH-VERIFY-002`: `GREEN`, closed by PR #11 at
+  `5d872bc` with all five jobs in CI run `29848008998` passing.
 - `SH-ORACLE-001`: confidential oracle evaluation is not implemented or claimed.
 - `SH-IO-001`: strict bounded reads are not yet one shared primitive.
 - `SH-SUPPLY-001`: runtime image identity is not release-pinned.

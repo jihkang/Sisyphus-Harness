@@ -1,7 +1,7 @@
 # Implementation Debt Register
 
-- Register date: 2026-07-21
-- Scope: Harness architecture through locally validated Slice C command isolation
+- Register date: 2026-07-22
+- Scope: Harness architecture through merged Slice C command isolation
 - Status vocabulary: [canonical conformance model](conformance-model.md)
 - Detailed ordering: [remediation roadmap](../reviews/2026-07-21/remediation-roadmap.md)
 
@@ -14,8 +14,6 @@ revision making the claim.
 
 | ID | Priority | Status | Current fact | Exit condition | Slice |
 | --- | --- | --- | --- | --- | --- |
-| `SH-VERIFY-001` | P0 | `AMBER` Partial | Asset CAS, immutable image execution identity, v2 profile/request/result/outcome, v3 receipt, full binding validation, adversarial tests, and real-Docker tests are implemented locally; current-head CI and merge evidence are pending. | Current-head CI passes the asset/image substitution suite and real Docker probes, the change is merged, and the closure log records the merge revision. | C |
-| `SH-VERIFY-002` | P0 | `AMBER` Partial | The default Docker transport now runs every command as direct container PID 1 without request, bundle CAS, or evidence mounts; the host alone captures output and constructs the receipt. Unit and three real-Docker adversarial paths pass locally; current-head CI and merge evidence are pending. | Current-head CI rebuilds the image and proves absent authority mounts, detached-child teardown, mutation failure, host-created evidence, and Control adjudication; the merged revision is recorded in the closure log. | C hardening |
 | `SH-ORACLE-001` | P1 | `GRAY` Not evaluated | The current deployment protects verifier asset integrity but deliberately exposes mounted bytes to code in the same container namespace; confidential hidden-oracle execution is neither implemented nor claimed. | If confidentiality becomes a product requirement, a separate process or VM evaluator receives no candidate-readable oracle bytes and returns only a bounded authenticated result; read-attempt tests fail closed. | Deployment profile |
 | `SH-GRAPH-001` | P0 | `RED` Non-conformant | `TaskOutcome` binds queue job/attempt lineage, but no admitted Claim, Gap, TaskBasis, TaskGraph dispatch, or source-grounding digest exists. | Control admits a revision-bound task basis and dispatch; stale or mismatched graph/source/contract bindings cannot enqueue or close a task. | Task-graph phases 2-5 |
 | `SH-CTRL-001` | P1 | `AMBER` Partial | Outcome rows and artifacts prevent duplicate authority, but concurrent first adjudications have no dedicated Control lease and one caller may need to retry. | A fenced adjudication claim provides bounded retry/idempotency tests without allowing two verifier publications or stale completion. | E |
@@ -50,3 +48,5 @@ revision making the claim.
 | `SH-P0-001` | PR #8 | default-deny write allowlist and mutation regression |
 | `SH-P0-002` | PR #9 at `8cccfef` | Worker/Control authority separation and five passing current-head CI jobs |
 | `SH-P0-006` | PR #8 | Docker-default verification and real-container boundary probes |
+| `SH-VERIFY-001` | PR #11 at `5d872bc` | asset/image substitution and full v2/v3 binding chain passed all five jobs in [CI run 29848008998](https://github.com/jihkang/Sisyphus-Harness/actions/runs/29848008998) |
+| `SH-VERIFY-002` | PR #11 at `5d872bc` | host-owned evidence, absent authority mounts, detached-child teardown, mutation failure, and Control publication passed three real-Docker probes in [CI run 29848008998](https://github.com/jihkang/Sisyphus-Harness/actions/runs/29848008998) |

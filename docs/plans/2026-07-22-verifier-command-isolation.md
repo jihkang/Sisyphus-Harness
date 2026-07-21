@@ -1,7 +1,7 @@
 # Verifier Command Isolation Implementation Plan
 
 - Date: 2026-07-22
-- Status: In progress
+- Status: Complete
 - Owner boundary: Verifier host transport
 - Related debt: `SH-VERIFY-002`, `SH-ARCH-002`, `SH-IO-001`, `SH-TEST-001`
 - Predecessor: Slice C verifier asset and image integrity binding
@@ -182,9 +182,9 @@ boundary. A later compatibility-removal decision belongs to `SH-COMPAT-001`.
 - benchmark/evolution migration to the contained runtime;
 - full Agent/Evolve/Control transport and Compose parity.
 
-## 9. Local Implementation Checkpoint
+## 9. Completion Evidence
 
-The implementation and local proof are complete on the working branch:
+The implementation and local proof completed on the delivery branch:
 
 - every default command is direct container PID 1 and has no request, bundle
   CAS, or evidence mount;
@@ -197,6 +197,8 @@ The implementation and local proof are complete on the working branch:
 - all three opt-in real Docker tests pass against the locally rebuilt image.
 
 Static analysis, documentation, source/wheel offline build, isolated wheel
-installation, and CLI startup gates also pass locally. PR CI, merge, refreshed
-local `main`, and the post-merge debt closure record are still required before
-this plan can be marked complete.
+installation, and CLI startup gates also passed locally. PR #11 ran all five CI
+jobs against head `c0650c7`, including the rebuilt-image Docker suite, and merged
+as `5d872bc6a064e5f5f36aa46df31813a4ca2d4608`. Local `main` was then fetched and
+fast-forwarded to that revision. `SH-VERIFY-001` and `SH-VERIFY-002` are recorded
+as `GREEN` in the closure log; the non-goals remain separate open debt.
