@@ -8,6 +8,8 @@ import time
 from typing import Any
 import uuid
 
+from .contracts.codec import canonical_json_bytes
+from .contracts.control import AttemptFinished
 from .database import Database
 from .models import JobRecord, JobStatus
 
@@ -176,6 +178,85 @@ class JobQueue:
             result=result,
             now=now,
         )
+
+    def finish_attempt(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
+        attempt: AttemptFinished,
+        now: float | None = None,
+    ) -> JobRecord:
+        """Atomically publish execution lineage and release the current lease."""
+
+        normalized_job_id = job_id.strip()
+        normalized_worker = worker_id.strip()
+        if not normalized_job_id:
+            raise ValueError("job ID must be non-empty")
+        if not normalized_worker:
+            raise ValueError("worker ID must be non-empty")
+        if type(attempt) is not AttemptFinished:
+            raise TypeError("attempt result must be an exact AttemptFinished")
+        if attempt.job_id != normalized_job_id:
+            raise ValueError("attempt result is bound to a different job")
+        current = time.time() if now is None else float(now)
+        if not math.isfinite(current):
+            raise ValueError("lease clock must be finite")
+        result_json = canonical_json_bytes(attempt.to_dict()).decode("ascii")
+        finished_at = _utc_now()
+        with self.database.transaction() as connection:
+            updated = connection.execute(
+                """
+                UPDATE jobs
+                SET status = 'completed',
+                    lease_owner = NULL,
+                    lease_expires_at = NULL,
+                    result_json = ?,
+                    updated_at = ?
+                WHERE job_id = ?
+                  AND kind = 'coding-agent'
+                  AND status = 'running'
+                  AND lease_owner = ?
+                  AND lease_expires_at > ?
+                  AND attempts = ?
+                """,
+                (
+                    result_json,
+                    finished_at,
+                    normalized_job_id,
+                    normalized_worker,
+                    current,
+                    attempt.attempt,
+                ),
+            )
+            if updated.rowcount != 1:
+                raise LeaseError(
+                    "job lease or attempt authority is missing, stale, or owned by "
+                    "another worker"
+                )
+            connection.execute(
+                """
+                INSERT INTO attempt_finished(
+                    job_id, attempt, attempt_id, attempt_digest,
+                    payload_json, finished_at
+                )
+                VALUES(?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    attempt.job_id,
+                    attempt.attempt,
+                    attempt.attempt_id,
+                    attempt.attempt_digest,
+                    result_json,
+                    finished_at,
+                ),
+            )
+            row = connection.execute(
+                "SELECT * FROM jobs WHERE job_id = ?",
+                (normalized_job_id,),
+            ).fetchone()
+        assert row is not None
+        return _job_from_row(row)
 
     def get(self, job_id: str) -> JobRecord | None:
         with self.database.connection() as connection:

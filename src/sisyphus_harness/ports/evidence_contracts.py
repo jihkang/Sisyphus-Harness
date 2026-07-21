@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import re
 from typing import Protocol, runtime_checkable
 
-from ..contracts.control import CodingJobResult
+from ..contracts.control import AttemptFinished
 from ..contracts.evidence_contract import (
     ContractEvaluation,
     EvidenceContract,
@@ -24,20 +24,19 @@ _SAFE_RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,127}")
 class EvidenceAdjudicationRequest:
     """Control-owned inputs for an independent final verification run.
 
-    The coding result is execution lineage, not a completion assertion.  In
-    particular, ``job_result.success`` and ``agent_result.success`` are never
-    consumed as contract evidence.
+    The attempt result is execution lineage, not a completion assertion.  In
+    particular, ``agent_result.success`` is never consumed as contract evidence.
     """
 
-    job_result: CodingJobResult
+    job_result: AttemptFinished
     profile: VerificationProfile
     contract: EvidenceContract
     run_id: str
     producer_authority: str
 
     def __post_init__(self) -> None:
-        if type(self.job_result) is not CodingJobResult:
-            raise TypeError("adjudication job result must be a CodingJobResult")
+        if type(self.job_result) is not AttemptFinished:
+            raise TypeError("adjudication job result must be an AttemptFinished")
         if type(self.profile) is not VerificationProfile:
             raise TypeError("adjudication profile must be a VerificationProfile")
         if type(self.contract) is not EvidenceContract:
@@ -91,6 +90,27 @@ class EvidenceAdjudicationResult:
             )
         if not isinstance(self.evaluation, ContractEvaluation):
             raise TypeError("adjudication contract evaluation is invalid")
+        if self.output_bundle_id != self.verification_request.workspace_bundle.bundle_id:
+            raise ValueError(
+                "adjudication output bundle does not match the verification request"
+            )
+        if self.verification_result.request_digest != self.verification_request.request_digest:
+            raise ValueError(
+                "adjudication verification result does not match its request"
+            )
+        if self.verification_result.workspace_bundle_id != self.output_bundle_id:
+            raise ValueError(
+                "adjudication verification result does not match the output bundle"
+            )
+        if (
+            self.verification_result.profile_digest
+            != self.verification_request.profile.profile_digest
+        ):
+            raise ValueError(
+                "adjudication verification result does not match the profile"
+            )
+        if self.verification_result.receipt.run_id != self.verification_request.run_id:
+            raise ValueError("adjudication receipt does not match the verification run")
 
 
 @runtime_checkable

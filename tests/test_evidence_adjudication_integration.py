@@ -12,7 +12,7 @@ from sisyphus_harness.adapters.receipt_observations import (
     command_fact_selector,
 )
 from sisyphus_harness.contracts.agent import AgentResult
-from sisyphus_harness.contracts.control import CodingJobResult
+from sisyphus_harness.contracts.control import AttemptFinished
 from sisyphus_harness.contracts.evidence_contract import (
     AllOf,
     ClauseRef,
@@ -56,11 +56,10 @@ class EvidenceAdjudicationIntegrationTests(unittest.TestCase):
                 changed_paths=("tracked.txt",),
                 artifact_path="agent/agent-integration",
             )
-            job_result = CodingJobResult(
+            job_result = AttemptFinished(
                 job_id="integration-job",
                 attempt=1,
                 attempt_id="integration-job/attempt-0001",
-                success=False,
                 source_bundle=source_bundle,
                 output_bundle=output_bundle,
                 agent_result=agent_result,

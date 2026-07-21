@@ -26,3 +26,17 @@ Default-deny writes and contained verifier
 
 Each slice starts from fetched `main`, carries focused regression tests, and is
 merged only after checks and review target the current head SHA.
+
+## Current Delivery State
+
+- Slice A merged in PR #8 at `77cd48e` with all required CI jobs passing.
+- Slice B is implemented on `codex/control-task-outcome-authority`; local gates
+  cover schema migration, stale-attempt fencing, immutable rows, idempotent
+  Control publication, contained composition, and CLI projection. CI and merge
+  remain required before closure.
+- Slices C through F remain open and must start from refreshed `main` after the
+  preceding slice is merged.
+
+The living [implementation debt register](../../status/implementation-debt.md)
+assigns stable IDs and exit conditions to the open work in these slices. This
+dated roadmap defines dependency order; the register owns current status.

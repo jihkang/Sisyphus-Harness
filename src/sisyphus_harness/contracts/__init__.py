@@ -10,7 +10,12 @@ from .codec import (
     strict_object,
     to_wire,
 )
-from .control import CodingJobResult
+from .control import (
+    AttemptFinished,
+    CodingJobResult,
+    TaskOutcome,
+    TaskOutcomeDecision,
+)
 from .errors import CandidateError
 from .evidence_contract import (
     AllOf,
@@ -78,6 +83,7 @@ __all__ = [
     "AllOf",
     "AnyOf",
     "ArtifactRef",
+    "AttemptFinished",
     "AtLeast",
     "BundleVerificationRequest",
     "CadencePolicy",
@@ -123,6 +129,8 @@ __all__ = [
     "ObservationStatus",
     "PredicateEvaluation",
     "PredicateOperator",
+    "TaskOutcome",
+    "TaskOutcomeDecision",
     "VerificationReceipt",
     "VerificationRequest",
     "VerificationProfile",

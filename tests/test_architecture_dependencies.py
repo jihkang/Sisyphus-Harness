@@ -45,13 +45,14 @@ class ArchitectureDependencyTests(unittest.TestCase):
                 self.assertIs(legacy, contract)
 
     def test_contracts_do_not_import_runtime_modules(self) -> None:
-        for path in sorted((PACKAGE_ROOT / "contracts").glob("*.py")):
-            with self.subTest(path=path.name):
+        for path in sorted((PACKAGE_ROOT / "contracts").rglob("*.py")):
+            with self.subTest(path=path.relative_to(PACKAGE_ROOT)):
+                package_depth = len(path.relative_to(PACKAGE_ROOT).parent.parts)
                 for node in _imports(path):
                     if isinstance(node, ast.ImportFrom):
                         self.assertLessEqual(
                             node.level,
-                            1,
+                            package_depth,
                             f"{path.name} imports outside the contracts package",
                         )
                         if node.level == 0 and node.module is not None:
@@ -104,6 +105,37 @@ class ArchitectureDependencyTests(unittest.TestCase):
                     f"{filename} imports forbidden modules: "
                     f"{sorted(imported.intersection(blocked))}",
                 )
+
+    def test_task_outcome_write_authority_is_not_available_to_worker(self) -> None:
+        worker_source = (PACKAGE_ROOT / "worker.py").read_text(encoding="utf-8")
+        for forbidden in (
+            "TaskOutcome",
+            "TaskOutcomeAuthorityPort",
+            "publish_task_outcome",
+            "task_outcomes",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, worker_source)
+
+        writers = [
+            path.relative_to(PACKAGE_ROOT).as_posix()
+            for path in PACKAGE_ROOT.rglob("*.py")
+            if "INSERT INTO task_outcomes" in path.read_text(encoding="utf-8")
+        ]
+        self.assertEqual(writers, ["infra/control_outcomes.py"])
+
+    def test_control_outcome_service_depends_on_ports_not_infrastructure(self) -> None:
+        path = PACKAGE_ROOT / "services" / "control_outcomes.py"
+        imported = {
+            node.module.split(".", 1)[0]
+            for node in _imports(path)
+            if isinstance(node, ast.ImportFrom)
+            and node.level == 2
+            and node.module
+        }
+        self.assertFalse(
+            imported.intersection({"database", "infra", "queue", "worker"})
+        )
 
 
 def _imports(path: Path) -> list[ast.Import | ast.ImportFrom]:

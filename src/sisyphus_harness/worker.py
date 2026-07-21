@@ -19,7 +19,7 @@ from .authority import (
 )
 from .config import ProviderSettings, load_harness_config
 from .contracts.agent import AgentTask
-from .contracts.control import CodingJobResult
+from .contracts.control import AttemptFinished
 from .contracts.policy import CandidatePolicy
 from .contracts.workspace import WorkspaceBundleRef
 from .infra.workspace_bundle import FilesystemWorkspaceBundleStore
@@ -222,16 +222,10 @@ class CodingWorker:
                 result = self._execute_attempt(job, payload, keeper)
                 if keeper.lost_error is not None:
                     raise LeaseError(f"worker lost lease: {keeper.lost_error}")
-                if result.success:
-                    return self.queue.complete(
-                        job.job_id,
-                        worker_id=worker_id,
-                        result=result.to_dict(),
-                    )
-                return self.queue.fail(
+                return self.queue.finish_attempt(
                     job.job_id,
                     worker_id=worker_id,
-                    result=result.to_dict(),
+                    attempt=result,
                 )
             except Exception as exc:
                 if keeper.lost_error is not None:
@@ -250,7 +244,7 @@ class CodingWorker:
         job: JobRecord,
         payload: CodingJobPayload,
         keeper: LeaseKeeper,
-    ) -> CodingJobResult:
+    ) -> AttemptFinished:
         bundle_store = FilesystemWorkspaceBundleStore(
             workspace_bundle_root(self.repo_root)
         )
@@ -297,11 +291,10 @@ class CodingWorker:
             if keeper.lost_error is not None:
                 raise LeaseError(f"worker lost lease: {keeper.lost_error}")
             output_bundle = bundle_store.create(workspace)
-            return CodingJobResult(
+            return AttemptFinished(
                 job_id=job.job_id,
                 attempt=job.attempts,
                 attempt_id=attempt_id,
-                success=agent_result.success,
                 source_bundle=source_bundle,
                 output_bundle=output_bundle,
                 agent_result=agent_result,

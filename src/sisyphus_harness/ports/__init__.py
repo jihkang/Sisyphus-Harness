@@ -1,6 +1,11 @@
 from __future__ import annotations
 
 from .agent_run import AgentRunFactoryPort, AgentRunPort
+from .control_outcomes import (
+    TaskOutcomeAuthorityPort,
+    TaskOutcomeRequest,
+    TaskOutcomeServicePort,
+)
 from .evidence_contracts import (
     EvidenceAdjudicationRequest,
     EvidenceAdjudicationResult,
@@ -23,6 +28,9 @@ __all__ = [
     "EvidenceContractAdjudicationPort",
     "KnowledgeIndexPort",
     "ReceiptObservationPort",
+    "TaskOutcomeAuthorityPort",
+    "TaskOutcomeRequest",
+    "TaskOutcomeServicePort",
     "TimeoutBoundVerificationServicePort",
     "VerificationEvidencePort",
     "VerificationPort",

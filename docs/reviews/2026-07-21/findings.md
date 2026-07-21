@@ -4,12 +4,12 @@
 
 | ID | Finding | Required invariant | State |
 | --- | --- | --- | --- |
-| SH-P0-001 | Agent could rewrite verifier inputs | model writes are restricted to an operator-owned positive allowlist | Local regression passed; CI pending |
-| SH-P0-002 | Control adjudication is shadow-only | only Control can publish semantic TaskOutcome | Open |
+| SH-P0-001 | Agent could rewrite verifier inputs | model writes are restricted to an operator-owned positive allowlist | Closed by merged PR #8 |
+| SH-P0-002 | Control adjudication is shadow-only | only Control can publish semantic TaskOutcome | Locally implemented in Slice B; CI/merge pending |
 | SH-P0-003 | Qwen evidence was presented without a current-revision classification | every measurement declares historical or current-release scope | Historical manifest verification passed |
 | SH-P0-004 | Review completed after oversized merges | protected main requires current CI and review | Open repository setting |
-| SH-P0-005 | strict response schema used a forbidden union root | strict schema has one object root and explicit fallback mode | Implemented, endpoint validation pending |
-| SH-P0-006 | in-process verifier executed candidate code with host authority | untrusted mode uses bundle-backed Docker verification by default | Real container probe passed; CI pending |
+| SH-P0-005 | strict response schema used a forbidden union root | strict schema has one object root and explicit fallback mode | Merged; live endpoint validation pending |
+| SH-P0-006 | in-process verifier executed candidate code with host authority | untrusted mode uses bundle-backed Docker verification by default | Closed by merged PR #8 and CI container probe |
 
 ## Structural And Operational
 

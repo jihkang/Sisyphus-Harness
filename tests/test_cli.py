@@ -12,13 +12,20 @@ import textwrap
 import unittest
 from unittest.mock import patch
 
-from sisyphus_harness.authority import evolution_artifact_root
+from sisyphus_harness.authority import (
+    authority_database_path,
+    evolution_artifact_root,
+)
 from sisyphus_harness.cli import main
 from sisyphus_harness.config import CadencePolicy
+from sisyphus_harness.contracts.control import TaskOutcomeDecision
 from sisyphus_harness.evolution import CandidatePolicy
 from sisyphus_harness.provider import ChatResponse
+from sisyphus_harness.queue import JobQueue
 
 from .helpers import create_git_repo, run_git
+from .test_control_outcomes import _attempt
+from .test_evidence_adjudication import _contract, _profile
 
 
 class FakeProvider:
@@ -660,6 +667,94 @@ class CliTests(unittest.TestCase):
             )
         self.assertEqual(code, 0)
         self.assertEqual(completed["status"], "completed")
+
+    def test_task_status_and_control_adjudication_are_separate(self) -> None:
+        self.write_full_config()
+        profile = _profile()
+        contract = _contract(profile)
+        (self.repository / "profile.json").write_text(
+            json.dumps(profile.to_dict()),
+            encoding="utf-8",
+        )
+        (self.repository / "contract.json").write_text(
+            json.dumps(contract.to_dict()),
+            encoding="utf-8",
+        )
+        self.commit_all("add Control inputs")
+        queue = JobQueue(authority_database_path(self.repository))
+        queued = queue.enqueue(
+            kind="coding-agent",
+            payload={"task": "fix"},
+            idempotency_key="control-task",
+        )
+        claimed = queue.claim(
+            worker_id="worker",
+            lease_seconds=30,
+            now=100,
+        )
+        assert claimed is not None
+        attempt = _attempt(queued.job_id, 1, agent_success=True)
+        queue.finish_attempt(
+            queued.job_id,
+            worker_id="worker",
+            attempt=attempt,
+            now=101,
+        )
+
+        code, status, error = invoke(
+            [
+                "task-status",
+                "--repo",
+                str(self.repository),
+                "--job-id",
+                queued.job_id,
+            ]
+        )
+        self.assertEqual(code, 0)
+        self.assertIsNone(error)
+        self.assertEqual(status["job"]["status"], "completed")
+        self.assertEqual(
+            status["attempt_finished"]["attempt_digest"],
+            attempt.attempt_digest,
+        )
+        self.assertIsNone(status["task_outcome"])
+
+        calls = []
+
+        class PublishedOutcome:
+            decision = TaskOutcomeDecision.PASSED
+
+            def to_dict(self):
+                return {"decision": self.decision.value, "job_id": queued.job_id}
+
+        class FakeControlService:
+            def adjudicate(self, request):
+                calls.append(request)
+                return PublishedOutcome()
+
+        with patch(
+            "sisyphus_harness.cli.build_control_task_outcome_service",
+            return_value=FakeControlService(),
+        ):
+            code, outcome, error = invoke(
+                [
+                    "task-adjudicate",
+                    "--repo",
+                    str(self.repository),
+                    "--job-id",
+                    queued.job_id,
+                    "--profile",
+                    "profile.json",
+                    "--contract",
+                    "contract.json",
+                    "--run-id",
+                    "control-final-1",
+                ]
+            )
+        self.assertEqual(code, 0)
+        self.assertIsNone(error)
+        self.assertEqual(outcome["decision"], "passed")
+        self.assertEqual(calls[0].job_id, queued.job_id)
 
 
 if __name__ == "__main__":

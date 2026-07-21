@@ -30,7 +30,7 @@ Docker transport timeout and that unsafe image arguments are rejected.
 - The 30.5B bundle is historical evidence for `47539e0`; no current-release model
   performance or security claim is made.
 - Worker terminal state is still derived from `AgentResult.success`; Control-only
-  semantic `TaskOutcome` is Stage B.
+  semantic `TaskOutcome` is Slice B.
 - Verifier commands and hidden assets still share one container identity and mount
   namespace; secret-oracle isolation is Stage C.
 - Repository branch protection and required-review settings must be checked and

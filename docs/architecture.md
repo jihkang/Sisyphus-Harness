@@ -14,7 +14,8 @@ Container service boundaries and ownership decisions are recorded under
 `authority.py`, `database.py`, and `queue.py`
 
 Resolve the Git common directory, own SQLite schema and transactions, and
-control idempotent jobs, leases, heartbeats, and terminal transitions.
+control idempotent jobs, leases, heartbeats, execution-terminal transitions,
+immutable `AttemptFinished` lineage, and Control-owned `TaskOutcome` records.
 
 `tools.py` and `workspace.py`
 
@@ -42,13 +43,16 @@ it only the requested archive/reference pair in a fresh read-only bundle view
 and a fresh writable staging directory, bounds combined transport output, validates
 the source objects and receipt on the host, and atomically publishes a validated run.
 
-`contracts/evidence_contract.py`, `evidence_contract.py`, and
-`services/evidence_contract.py`
+`contracts/control/`, `contracts/evidence_contract.py`, `evidence_contract.py`,
+`services/evidence_contract.py`, `services/control_outcomes.py`, and
+`infra/control_outcomes.py`
 
 Define immutable evidence selectors, clauses, bounded predicate trees, and
 three-valued evaluation. Control independently verifies the exact Worker output
 bundle, re-reads the digest-bound receipt artifact, normalizes command facts,
 and evaluates the contract without consulting the Agent success Boolean.
+`ControlTaskOutcomeService` reloads the current fenced attempt and is the only
+application service that can publish the resulting semantic decision.
 
 `contracts/knowledge.py`, `knowledge_graph.py`, and `infra/knowledge_index.py`
 
@@ -71,7 +75,9 @@ host verification requires explicit `trusted-in-process`. Workers load one
 immutable job payload containing the input workspace bundle and effective
 config/policy snapshot, heartbeat the lease, materialize an isolated per-attempt
 repository, publish an output bundle, and write exactly one terminal queue
-result. Lease ownership fences the database transition; an expired attempt
+result plus `AttemptFinished` record. Queue completion means execution finished,
+not that the task passed. Lease ownership and the attempt number fence the
+database transition; an expired attempt
 cannot mutate the operator's source repository because its workspace is
 disposable authority state.
 
@@ -93,6 +99,9 @@ output bundle -> independent verifier -> authoritative receipt re-read
       |
       v
 Control EvidenceContract evaluation (Agent success is diagnostic only)
+      |
+      v
+immutable TaskOutcome (passed / failed / indeterminate)
       |
       v
 offline benchmark/evolution -> proposed candidate
@@ -117,3 +126,5 @@ Linked worktrees therefore share queue and policy authority. Agent workspaces
 cannot reach this directory through the provided tools. The same root also owns
 the rebuildable `knowledge-index.sqlite3`, content-addressed workspace bundles,
 disposable attempt workspaces, and Agent/verification/evolution artifacts.
+`authority.sqlite3` keeps queue rows, append-only `attempt_finished` lineage, and
+append-only `task_outcomes` as separate projections.

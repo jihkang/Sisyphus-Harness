@@ -20,7 +20,13 @@ from sisyphus_harness.config import (
 from sisyphus_harness.contracts.policy import CadencePolicy, CandidatePolicy
 from sisyphus_harness.contracts.verification import CommandSpec
 from sisyphus_harness.provider import ChatResponse
-from sisyphus_harness.runtime import build_agent_run, build_verification_adapter
+from sisyphus_harness.infra.control_outcomes import SQLiteTaskOutcomeAuthority
+from sisyphus_harness.services.control_outcomes import ControlTaskOutcomeService
+from sisyphus_harness.runtime import (
+    build_agent_run,
+    build_control_task_outcome_service,
+    build_verification_adapter,
+)
 
 from .helpers import create_git_repo
 
@@ -90,6 +96,22 @@ class RuntimeCompositionTests(unittest.TestCase):
             verifier = build_verification_adapter(root, trusted)
 
             self.assertIsInstance(verifier, InProcessVerificationAdapter)
+
+    def test_control_outcome_composition_is_contained_even_in_trusted_mode(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = create_git_repo(Path(directory) / "repository")
+            config = _config(
+                ExecutionSettings(trust_mode="trusted-in-process")
+            )
+
+            service = build_control_task_outcome_service(root, config)
+
+            self.assertIsInstance(service, ControlTaskOutcomeService)
+            self.assertIsInstance(service.authority, SQLiteTaskOutcomeAuthority)
+            self.assertIsInstance(
+                service.adjudicator.verifier,
+                DockerVerifierTransport,
+            )
 
 
 if __name__ == "__main__":

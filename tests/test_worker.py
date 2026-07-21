@@ -15,7 +15,7 @@ from sisyphus_harness.authority import (
     authority_database_path,
     workspace_bundle_root,
 )
-from sisyphus_harness.contracts import CodingJobResult
+from sisyphus_harness.contracts import AttemptFinished
 from sisyphus_harness.infra.workspace_bundle import FilesystemWorkspaceBundleStore
 from sisyphus_harness.models import JobStatus
 from sisyphus_harness.provider import ChatResponse, ProviderError
@@ -169,9 +169,9 @@ class WorkerTests(unittest.TestCase):
 
         assert completed is not None
         self.assertEqual(completed.status, JobStatus.COMPLETED)
-        self.assertTrue(completed.result["success"])
         self.assertEqual(completed.attempts, 1)
-        result = CodingJobResult.from_dict(completed.result)
+        result = AttemptFinished.from_dict(completed.result)
+        self.assertTrue(result.agent_result.success)
         self.assertEqual(
             result.agent_result.run_id,
             "worker-agent-attempt-0001",
@@ -217,7 +217,7 @@ class WorkerTests(unittest.TestCase):
         self.assertEqual(failed_payload.status, JobStatus.FAILED)
         self.assertIn("criteria", failed_payload.result["reason"])
 
-    def test_provider_failure_is_recorded_as_failed_job(self) -> None:
+    def test_provider_failure_is_recorded_as_finished_attempt_not_task_failure(self) -> None:
         self.write_fixture()
         self.enqueue(
             {
@@ -232,13 +232,15 @@ class WorkerTests(unittest.TestCase):
             provider_factory=lambda settings: FailingProvider(),
         )
 
-        failed = worker.run_once(worker_id="worker", lease_seconds=30)
+        finished = worker.run_once(worker_id="worker", lease_seconds=30)
 
-        assert failed is not None
-        self.assertEqual(failed.status, JobStatus.FAILED)
+        assert finished is not None
+        self.assertEqual(finished.status, JobStatus.COMPLETED)
+        attempt = AttemptFinished.from_dict(finished.result)
+        self.assertFalse(attempt.agent_result.success)
         self.assertIn(
             "provider failure",
-            failed.result["agent_result"]["reason"],
+            attempt.agent_result.reason,
         )
 
     def test_payload_parser_is_strict(self) -> None:

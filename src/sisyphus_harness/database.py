@@ -6,7 +6,7 @@ import sqlite3
 from typing import Iterator
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 _MIGRATIONS: dict[int, tuple[str, ...]] = {
     1: (
@@ -35,6 +35,61 @@ _MIGRATIONS: dict[int, tuple[str, ...]] = {
         """
         CREATE INDEX IF NOT EXISTS jobs_claimable
         ON jobs(status, lease_expires_at, created_at)
+        """,
+    ),
+    2: (
+        """
+        CREATE TABLE IF NOT EXISTS attempt_finished (
+            job_id TEXT NOT NULL,
+            attempt INTEGER NOT NULL CHECK (attempt > 0),
+            attempt_id TEXT NOT NULL UNIQUE,
+            attempt_digest TEXT NOT NULL UNIQUE,
+            payload_json TEXT NOT NULL,
+            finished_at TEXT NOT NULL,
+            PRIMARY KEY(job_id, attempt),
+            UNIQUE(job_id, attempt, attempt_digest),
+            FOREIGN KEY(job_id) REFERENCES jobs(job_id)
+        )
+        """,
+        """
+        CREATE TABLE IF NOT EXISTS task_outcomes (
+            job_id TEXT PRIMARY KEY,
+            attempt INTEGER NOT NULL CHECK (attempt > 0),
+            attempt_digest TEXT NOT NULL,
+            outcome_digest TEXT NOT NULL UNIQUE,
+            payload_json TEXT NOT NULL,
+            published_at TEXT NOT NULL,
+            FOREIGN KEY(job_id, attempt, attempt_digest)
+                REFERENCES attempt_finished(job_id, attempt, attempt_digest)
+        )
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS attempt_finished_no_update
+        BEFORE UPDATE ON attempt_finished
+        BEGIN
+            SELECT RAISE(ABORT, 'attempt-finished records are immutable');
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS attempt_finished_no_delete
+        BEFORE DELETE ON attempt_finished
+        BEGIN
+            SELECT RAISE(ABORT, 'attempt-finished records are immutable');
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS task_outcomes_no_update
+        BEFORE UPDATE ON task_outcomes
+        BEGIN
+            SELECT RAISE(ABORT, 'task outcomes are immutable');
+        END
+        """,
+        """
+        CREATE TRIGGER IF NOT EXISTS task_outcomes_no_delete
+        BEFORE DELETE ON task_outcomes
+        BEGIN
+            SELECT RAISE(ABORT, 'task outcomes are immutable');
+        END
         """,
     ),
 }
