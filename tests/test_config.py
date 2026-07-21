@@ -11,6 +11,7 @@ from sisyphus_harness.config import (
     CadencePolicy,
     ConfigError,
     EvolutionSettings,
+    ExecutionSettings,
     ProviderSettings,
     load_harness_config,
     load_verification_config,
@@ -71,6 +72,23 @@ class ConfigTests(unittest.TestCase):
             config.selected_commands[0].criteria,
             ("unit tests pass",),
         )
+
+    def test_provider_response_format_is_explicit_and_validated(self) -> None:
+        config = self.load_harness(
+            MINIMAL_HARNESS_CONFIG.replace(
+                'model = "local-model"',
+                'model = "local-model"\nresponse_format = "json_object"',
+            )
+        )
+        self.assertEqual(config.provider.response_format, "json_object")
+
+        with self.assertRaisesRegex(ConfigError, "provider.response_format"):
+            self.load_harness(
+                MINIMAL_HARNESS_CONFIG.replace(
+                    'model = "local-model"',
+                    'model = "local-model"\nresponse_format = "automatic"',
+                )
+            )
 
     def test_rejects_zero_commands(self) -> None:
         self.assert_config_error(
@@ -276,6 +294,30 @@ class ConfigTests(unittest.TestCase):
                     max_tokens=0,
                 ),
                 "max_tokens",
+            ),
+            (
+                lambda: ProviderSettings(
+                    base_url="http://localhost/v1",
+                    model="model",
+                    response_format="automatic",
+                ),
+                "response_format",
+            ),
+            (
+                lambda: ExecutionSettings(trust_mode="automatic"),
+                "trust_mode",
+            ),
+            (
+                lambda: ExecutionSettings(writable_paths=("../tests",)),
+                "unsafe relative path",
+            ),
+            (
+                lambda: ExecutionSettings(writable_paths=(".",)),
+                "unsafe relative path",
+            ),
+            (
+                lambda: ExecutionSettings(verifier_image="--privileged"),
+                "verifier_image",
             ),
             (lambda: AgentLimits(max_steps=0), "max_steps"),
             (lambda: AgentLimits(max_runtime_seconds=0), "max_runtime_seconds"),

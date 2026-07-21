@@ -9,7 +9,10 @@ from .evidence_contracts import (
 )
 from .knowledge import KnowledgeIndexPort
 from .verification import VerificationEvidencePort, VerificationPort
-from .verification_service import VerificationServicePort
+from .verification_service import (
+    TimeoutBoundVerificationServicePort,
+    VerificationServicePort,
+)
 from .workspace_state import WorkspaceStatePort
 
 __all__ = [
@@ -20,6 +23,7 @@ __all__ = [
     "EvidenceContractAdjudicationPort",
     "KnowledgeIndexPort",
     "ReceiptObservationPort",
+    "TimeoutBoundVerificationServicePort",
     "VerificationEvidencePort",
     "VerificationPort",
     "VerificationServicePort",

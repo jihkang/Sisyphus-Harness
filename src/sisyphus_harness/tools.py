@@ -33,6 +33,7 @@ class WorkspaceTools:
         max_file_bytes: int,
         max_output_chars: int,
         protected_write_paths: tuple[Path, ...] = (),
+        allowed_write_paths: tuple[Path, ...] | None = None,
         deadline: MonotonicDeadline | None = None,
     ) -> None:
         self.workspace = workspace.resolve()
@@ -41,11 +42,23 @@ class WorkspaceTools:
         self.deadline = deadline
         try:
             self.protected_write_paths = tuple(
-                contained_path(self.workspace, path)
+                contained_path(self.workspace, path).resolve(strict=False)
                 for path in protected_write_paths
             )
+            self.allowed_write_paths = (
+                None
+                if allowed_write_paths is None
+                else tuple(
+                    contained_path(
+                        self.workspace,
+                        path,
+                        require_relative=not Path(path).is_absolute(),
+                    ).resolve(strict=False)
+                    for path in allowed_write_paths
+                )
+            )
         except PathBoundaryError as exc:
-            raise ToolError(f"protected write path is outside workspace: {exc}") from exc
+            raise ToolError(f"write policy path is outside workspace: {exc}") from exc
 
     def execute(self, tool: str, arguments: dict[str, Any]) -> ToolOutcome:
         handlers = {
@@ -384,8 +397,18 @@ class WorkspaceTools:
             )
         except PathBoundaryError as exc:
             raise ToolError(str(exc)) from exc
-        if resolved in self.protected_write_paths:
+        resolved_target = resolved.resolve(strict=False)
+        if any(
+            resolved_target == protected
+            or protected in resolved_target.parents
+            for protected in self.protected_write_paths
+        ):
             raise ToolError(f"path is protected from model writes: {relative}")
+        if self.allowed_write_paths is not None and not any(
+            resolved_target == allowed or allowed in resolved_target.parents
+            for allowed in self.allowed_write_paths
+        ):
+            raise ToolError(f"path is outside the model write allowlist: {relative}")
         current = self.workspace
         for part in candidate.parts[:-1]:
             current = current / part

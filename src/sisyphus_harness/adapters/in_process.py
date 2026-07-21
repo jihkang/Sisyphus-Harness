@@ -78,6 +78,8 @@ class InProcessAgentRunFactory:
     provider: ChatProvider
     limits: AgentLimits
     protected_write_paths: tuple[Path, ...] = ()
+    allowed_write_paths: tuple[Path, ...] | None = None
+    verifier: VerificationPort | None = None
 
     def create(
         self,
@@ -86,7 +88,7 @@ class InProcessAgentRunFactory:
         agent_artifact_root: Path,
         verification_artifact_root: Path,
     ) -> AgentRunPort:
-        verifier = InProcessVerificationAdapter.from_artifact_root(
+        verifier = self.verifier or InProcessVerificationAdapter.from_artifact_root(
             verification_artifact_root
         )
         return InProcessAgentRunAdapter(
@@ -98,5 +100,6 @@ class InProcessAgentRunFactory:
                 cadence=policy.cadence,
                 strategy_prompt=policy.strategy_prompt,
                 protected_write_paths=self.protected_write_paths,
+                allowed_write_paths=self.allowed_write_paths,
             )
         )

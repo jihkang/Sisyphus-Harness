@@ -101,6 +101,7 @@ class AgentTests(unittest.TestCase):
         *,
         cadence: CadencePolicy | None = None,
         limits: AgentLimits | None = None,
+        allowed_write_paths: tuple[Path, ...] | None = None,
     ) -> LocalCodingAgent:
         return LocalCodingAgent(
             provider=provider,
@@ -109,7 +110,58 @@ class AgentTests(unittest.TestCase):
             limits=limits or AgentLimits(max_steps=12),
             cadence=cadence or CadencePolicy(),
             strategy_prompt="Inspect, edit narrowly, and verify.",
+            allowed_write_paths=allowed_write_paths,
         )
+
+    def test_agent_cannot_replace_verifier_oracle_outside_write_scope(self) -> None:
+        oracle = self.repository / "test_oracle.py"
+        oracle_content = "from calc import add\nassert add(2, 3) == 5\n"
+        oracle.write_text(oracle_content, encoding="utf-8")
+        run_git(self.repository, "add", "test_oracle.py")
+        run_git(self.repository, "commit", "-q", "-m", "add immutable oracle")
+        original = "def add(left, right):\n    return left - right\n"
+        provider = FakeProvider(
+            [
+                decision(
+                    "write_file",
+                    {
+                        "path": "test_oracle.py",
+                        "content": "assert True\n",
+                        "expected_sha256": sha256(oracle_content),
+                    },
+                ),
+                decision(
+                    "replace_text",
+                    {
+                        "path": "calc.py",
+                        "old": "return left - right",
+                        "new": "return left + right",
+                        "expected_sha256": sha256(original),
+                    },
+                ),
+                finish(),
+            ]
+        )
+        command = CommandSpec(
+            name="immutable-oracle",
+            argv=(sys.executable, "test_oracle.py"),
+            timeout_seconds=10,
+            criteria=("oracle behavior passes",),
+        )
+
+        result = self.build_agent(
+            provider,
+            allowed_write_paths=(self.repository / "calc.py",),
+        ).run(
+            self.repository,
+            AgentTask("Fix add without changing the oracle.", ("oracle behavior passes",)),
+            (command,),
+            run_id="oracle-write-scope",
+        )
+
+        self.assertTrue(result.success)
+        self.assertEqual(result.changed_paths, ("calc.py",))
+        self.assertEqual(oracle.read_text(encoding="utf-8"), oracle_content)
 
     def test_agent_edits_then_requires_final_verification(self) -> None:
         original = "def add(left, right):\n    return left - right\n"

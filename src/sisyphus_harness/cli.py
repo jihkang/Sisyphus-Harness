@@ -10,11 +10,9 @@ from typing import Sequence
 import uuid
 
 from .adapters.in_process import (
-    InProcessAgentRunFactory,
     InProcessVerificationAdapter,
 )
 from .authority import (
-    agent_artifact_root,
     authority_database_path,
     evolution_artifact_root,
     knowledge_index_path,
@@ -50,6 +48,7 @@ from .knowledge_graph import KnowledgeGraph
 from .policy import PolicyRegistry
 from .provider import OpenAICompatibleProvider
 from .queue import JobQueue
+from .runtime import build_agent_run, build_verification_adapter
 from .worker import CodingWorker
 from .workspace import contained_path
 
@@ -106,6 +105,11 @@ def build_parser() -> argparse.ArgumentParser:
     verify_parser = subparsers.add_parser("verify")
     _repo_argument(verify_parser)
     _config_argument(verify_parser)
+    verify_parser.add_argument(
+        "--trusted-in-process",
+        action="store_true",
+        help="allow a legacy verification-only config to execute on the host",
+    )
 
     agent_parser = subparsers.add_parser("agent-run")
     _repo_argument(agent_parser)
@@ -288,15 +292,23 @@ def _main(argv: Sequence[str] | None) -> int:
     if args.command == "verify":
         config_path = _repo_path(repo_root, args.config)
         try:
-            verification = load_harness_config(config_path).verification
+            config = load_harness_config(config_path)
+            verification = config.verification
+            verifier = build_verification_adapter(repo_root, config)
         except ConfigError as harness_error:
             try:
                 verification = load_verification_config(config_path)
             except ConfigError:
                 raise harness_error
-        receipt = InProcessVerificationAdapter.from_artifact_root(
-            verification_artifact_root(repo_root)
-        ).verify(repo_root, verification.selected_commands)
+            if not args.trusted_in_process:
+                raise ConfigError(
+                    "verification-only config requires --trusted-in-process; use a "
+                    "harness config for contained verification"
+                )
+            verifier = InProcessVerificationAdapter.from_artifact_root(
+                verification_artifact_root(repo_root)
+            )
+        receipt = verifier.verify(repo_root, verification.selected_commands)
         _print_json(receipt.to_dict())
         return 0 if receipt.passed else 1
     if args.command == "agent-run":
@@ -304,14 +316,13 @@ def _main(argv: Sequence[str] | None) -> int:
         config = load_harness_config(config_path)
         policy = _resolve_policy(repo_root, config, args.policy)
         provider = OpenAICompatibleProvider(config.provider)
-        result = InProcessAgentRunFactory(
+        result = build_agent_run(
+            authority_root=repo_root,
+            workspace=repo_root,
+            config_path=config_path,
+            config=config,
             provider=provider,
-            limits=config.limits,
-            protected_write_paths=(config_path,),
-        ).create(
             policy=policy,
-            agent_artifact_root=agent_artifact_root(repo_root),
-            verification_artifact_root=verification_artifact_root(repo_root),
         ).run(
             repo_root,
             AgentTask(args.task, tuple(args.criterion)),

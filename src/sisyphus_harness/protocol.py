@@ -29,35 +29,42 @@ def _arguments_schema(
     }
 
 
+def _nullable(schema: dict[str, object]) -> dict[str, object]:
+    return {"anyOf": [schema, {"type": "null"}]}
+
+
 _RELATIVE_PATH = {"type": "string", "minLength": 1}
 _SHA256 = {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
 TOOL_ARGUMENT_SCHEMAS: dict[str, dict[str, object]] = {
     "list_files": _arguments_schema(
         {"prefix": {"type": "string"}},
+        required=("prefix",),
     ),
     "read_file": _arguments_schema(
         {
             "path": _RELATIVE_PATH,
-            "start_line": {"type": "integer", "minimum": 1},
-            "end_line": {"type": "integer", "minimum": 1},
+            "start_line": _nullable({"type": "integer", "minimum": 1}),
+            "end_line": _nullable({"type": "integer", "minimum": 1}),
         },
-        required=("path",),
+        required=("path", "start_line", "end_line"),
     ),
     "search_text": _arguments_schema(
         {
             "query": {"type": "string", "minLength": 1, "maxLength": 512},
             "path": {"type": "string"},
-            "max_results": {"type": "integer", "minimum": 1, "maximum": 200},
+            "max_results": _nullable(
+                {"type": "integer", "minimum": 1, "maximum": 200}
+            ),
         },
-        required=("query",),
+        required=("query", "path", "max_results"),
     ),
     "write_file": {
-        "oneOf": [
+        "anyOf": [
             _arguments_schema(
                 {
                     "path": _RELATIVE_PATH,
                     "content": {"type": "string"},
-                    "expected_sha256": {"oneOf": [_SHA256, {"type": "null"}]},
+                    "expected_sha256": _nullable(_SHA256),
                 },
                 required=("path", "content", "expected_sha256"),
             ),
@@ -68,14 +75,14 @@ TOOL_ARGUMENT_SCHEMAS: dict[str, dict[str, object]] = {
                         "type": "array",
                         "items": {"type": "string"},
                     },
-                    "expected_sha256": {"oneOf": [_SHA256, {"type": "null"}]},
+                    "expected_sha256": _nullable(_SHA256),
                 },
                 required=("path", "content_lines", "expected_sha256"),
             ),
         ]
     },
     "replace_text": {
-        "oneOf": [
+        "anyOf": [
             _arguments_schema(
                 {
                     "path": _RELATIVE_PATH,
@@ -133,21 +140,28 @@ AGENT_DECISION_RESPONSE_FORMAT: dict[str, object] = {
         "name": "agent_decision",
         "strict": True,
         "schema": {
-            "oneOf": [
-                *(
-                    _tool_decision_schema(tool)
-                    for tool in sorted(ALLOWED_TOOLS)
-                ),
-                {
-                    "type": "object",
-                    "additionalProperties": False,
-                    "properties": {
-                        "type": {"const": "finish"},
-                        "summary": {"type": "string", "minLength": 1},
-                    },
-                    "required": ["type", "summary"],
-                },
-            ]
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "decision": {
+                    "anyOf": [
+                        *(
+                            _tool_decision_schema(tool)
+                            for tool in sorted(ALLOWED_TOOLS)
+                        ),
+                        {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "type": {"const": "finish"},
+                                "summary": {"type": "string", "minLength": 1},
+                            },
+                            "required": ["type", "summary"],
+                        },
+                    ]
+                }
+            },
+            "required": ["decision"],
         },
     },
 }
@@ -177,6 +191,11 @@ class AgentDecision:
 
 def parse_agent_decision(content: str) -> AgentDecision:
     payload = _parse_json_object(content)
+    if set(payload) == {"decision"}:
+        nested = payload["decision"]
+        if not isinstance(nested, dict):
+            raise ProtocolError("decision envelope must contain an object")
+        payload = nested
     kind = payload.get("type")
     if kind == "tool":
         _reject_unknown(payload, {"type", "tool", "arguments", "reason"})

@@ -28,3 +28,16 @@ class VerificationServicePort(Protocol):
         """Read and validate the authoritative receipt artifact by reference."""
 
         ...
+
+
+@runtime_checkable
+class TimeoutBoundVerificationServicePort(Protocol):
+    """A host-side transport that can be clamped to the Agent's remaining budget."""
+
+    def execute_with_timeout(
+        self,
+        request: BundleVerificationRequest,
+        *,
+        timeout_seconds: float,
+    ) -> VerificationServiceResult:
+        ...

@@ -57,7 +57,7 @@ class OpenAICompatibleProvider:
         json_mode: bool = True,
     ) -> None:
         self.settings = settings
-        self.json_mode = json_mode
+        self.response_format = settings.response_format if json_mode else "none"
 
     def complete(self, messages: tuple[ChatMessage, ...]) -> ChatResponse:
         return self.complete_with_timeout(
@@ -81,8 +81,10 @@ class OpenAICompatibleProvider:
             "max_tokens": self.settings.max_tokens,
             "stream": False,
         }
-        if self.json_mode:
+        if self.response_format == "json_schema":
             request_payload["response_format"] = AGENT_DECISION_RESPONSE_FORMAT
+        elif self.response_format == "json_object":
+            request_payload["response_format"] = {"type": "json_object"}
         payload = json.dumps(request_payload).encode("utf-8")
         headers = {"Content-Type": "application/json"}
         authorization: str | None = None
@@ -115,6 +117,12 @@ class OpenAICompatibleProvider:
             )
             if len(detail) > 512:
                 detail = f"{detail[:512]}..."
+            if exc.code == 400 and self.response_format == "json_schema":
+                detail = (
+                    f"{detail} Provider may not support strict json_schema; set "
+                    "provider.response_format = 'json_object' or 'none' only after "
+                    "confirming the endpoint capability."
+                ).strip()
             raise ProviderError(f"provider returned HTTP {exc.code}: {detail}") from exc
         except (urllib.error.URLError, TimeoutError) as exc:
             raise ProviderError(f"provider request failed: {exc}") from exc

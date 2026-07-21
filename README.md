@@ -30,9 +30,11 @@ The project is experimental and intended for supervised local use. It provides:
 - signed operator approval before an evolved policy can become active.
 
 The model has no shell, network, merge, release, lifecycle, or policy-activation
-tool. Verification commands are not sandboxed and may execute model-edited code
-with the operator account; use an external sandbox when the model or repository
-content is not fully trusted.
+tool. Full harness configurations default to `untrusted-contained`: model writes
+require an explicit positive allowlist and direct/queued verification runs in
+Docker. `trusted-in-process` and the current benchmark/evolution compatibility
+path execute model-edited code with the operator account and must be isolated
+externally when that code is untrusted.
 
 `DockerVerifierTransport` provides that external boundary with no network, a
 read-only root filesystem, dropped capabilities, bounded memory/CPU/processes,
@@ -76,14 +78,28 @@ Install the evolution engine only on the machine that runs offline evolution:
 ```
 
 Copy `sisyphus-harness.example.toml` to `sisyphus-harness.toml` and set the
-provider URL, model name, limits, cadence, and verification commands.
+provider URL, model name, limits, cadence, verification commands, and the
+smallest source roots the task may modify:
+
+```toml
+[execution]
+trust_mode = "untrusted-contained"
+writable_paths = ["src"]
+verifier_image = "sisyphus-harness-verifier:local"
+```
+
+Build that image from `docker/verifier.Dockerfile` before the default direct or
+queued run. Host verification is a compatibility escape hatch and requires an
+explicit `trust_mode = "trusted-in-process"` declaration.
 
 ## Local Model
 
 Any OpenAI-compatible chat endpoint can be used. For a Qwen3 GGUF with
 `llama-server`, either disable reasoning or expose it separately from the final
 content. The following bounded-reasoning configuration is the one used for the
-committed Qwen3 30.5B evidence:
+committed historical Qwen3 30.5B evidence. That bundle targets revision
+`47539e0d69a70256fcb0f0bb6b96176b67dfa99d`; it is not evidence for current
+`main` behavior:
 
 ```bash
 llama-server \
@@ -217,16 +233,18 @@ sisyphus-harness policy-activate \
 
 Use `--policy active` on a later agent, queue, or benchmark run.
 
-## Measured Qwen3 30.5B Run
+## Historical Qwen3 30.5B Run
 
-The committed final-code run used candidate
+The committed run is historical evidence for revision
+`47539e0d69a70256fcb0f0bb6b96176b67dfa99d`, not a current-release benchmark.
+It used candidate
 `sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027`.
 Against the frozen baselines it produced:
 
-| Split | Baseline mean | Final-code mean | Delta | Success |
-| --- | ---: | ---: | ---: | ---: |
-| Train | 0.686497 | 0.897319 | +0.210822 | 0.75 |
-| Frozen holdout-v3 | 0.718388 | 0.939145 | +0.220757 | 1.00 |
+| Split | n | Baseline mean | Final-code mean | Delta | Success |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Train | 4 | 0.686497 | 0.897319 | +0.210822 | 0.75 |
+| Frozen holdout-v3 | 2 | 0.718388 | 0.939145 | +0.220757 | 1.00 |
 
 All hard gates passed. Fresh direct and queued coding tasks both changed only
 the expected file, completed in 3 steps, compacted once, and passed the final
@@ -264,7 +282,7 @@ coverage report -m
 
 The configured branch-coverage floor is 90%.
 
-See [Architecture](docs/architecture.md),
+See the [Documentation Map](docs/README.md), [Architecture](docs/architecture.md),
 [Architecture and Data Pipeline](docs/architecture-and-data-pipeline.md),
 [Evolution](docs/evolution.md), and [Security Policy](SECURITY.md) for the trust
 model, data lineage, and operating constraints.
