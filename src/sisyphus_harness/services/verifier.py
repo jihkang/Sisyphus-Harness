@@ -14,6 +14,7 @@ from ..contracts.verification_service import (
     BundleVerificationRequest,
     VerificationServiceResult,
 )
+from ..infra.verifier_assets import verifier_asset_tree_hash
 from ..infra.workspace_bundle import FilesystemWorkspaceBundleStore
 from ..receipts import write_json_atomic
 from ..verifier import BoundedVerifier
@@ -31,10 +32,12 @@ class BundleVerifierService:
         bundle_store: FilesystemWorkspaceBundleStore,
         artifact_root: Path,
         work_root: Path,
+        asset_root: Path | None = None,
     ) -> None:
         self.bundle_store = bundle_store
         self.artifact_root = artifact_root
         self.work_root = work_root
+        self.asset_root = asset_root
 
     def read_receipt(self, reference: ArtifactRef) -> VerificationReceipt:
         return BoundedVerifier(self.artifact_root).read_receipt(reference)
@@ -53,11 +56,27 @@ class BundleVerifierService:
             )
         )
         workspace = attempt_root / "workspace"
+        asset_reference = request.profile.asset_bundle
+        asset_tree_before: str | None = None
         try:
             materialized_hash = self.bundle_store.materialize(stored, workspace)
             if materialized_hash != stored.tree_hash:
                 raise VerifierServiceError(
                     "materialized workspace does not match its bundle tree"
+                )
+            if asset_reference is not None:
+                if self.asset_root is None:
+                    raise VerifierServiceError(
+                        "verification profile requires a verifier asset mount"
+                    )
+                asset_tree_before = verifier_asset_tree_hash(self.asset_root)
+                if asset_tree_before != asset_reference.tree_hash:
+                    raise VerifierServiceError(
+                        "verifier asset mount does not match its bundle tree"
+                    )
+            elif self.asset_root is not None:
+                raise VerifierServiceError(
+                    "unrequested verifier asset mount is forbidden"
                 )
             write_json_atomic(
                 self.artifact_root
@@ -76,7 +95,32 @@ class BundleVerifierService:
                 request.profile.commands,
                 run_id=request.run_id,
                 request_digest=request.request_digest,
+                workspace_bundle_id=(
+                    stored.bundle_id if request.execution_identity is not None else None
+                ),
+                profile_digest=(
+                    request.profile.profile_digest
+                    if request.execution_identity is not None
+                    else None
+                ),
+                execution_identity_digest=(
+                    request.execution_identity.identity_digest
+                    if request.execution_identity is not None
+                    else None
+                ),
+                verifier_asset_bundle_id=(
+                    asset_reference.bundle_id if asset_reference is not None else None
+                ),
             )
+            if asset_reference is not None:
+                asset_tree_after = verifier_asset_tree_hash(self.asset_root)
+                if (
+                    asset_tree_after != asset_tree_before
+                    or asset_tree_after != asset_reference.tree_hash
+                ):
+                    raise VerifierServiceError(
+                        "verifier asset mount changed during verification"
+                    )
             reference = verifier.receipt_reference(receipt.run_id)
             return VerificationServiceResult(
                 request_digest=request.request_digest,
@@ -84,6 +128,12 @@ class BundleVerifierService:
                 profile_digest=request.profile.profile_digest,
                 receipt=receipt,
                 receipt_artifact=reference,
+                execution_identity=request.execution_identity,
+                schema_version=(
+                    "sisyphus_harness.verification_service_result.v2"
+                    if request.execution_identity is not None
+                    else "sisyphus_harness.verification_service_result.v1"
+                ),
             )
         finally:
             shutil.rmtree(attempt_root, ignore_errors=True)
@@ -95,6 +145,7 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--bundle-store", type=Path, required=True)
     parser.add_argument("--artifact-root", type=Path, required=True)
     parser.add_argument("--work-root", type=Path, required=True)
+    parser.add_argument("--asset-root", type=Path)
     parser.add_argument("--result", type=Path)
     return parser
 
@@ -112,6 +163,7 @@ def main(argv: list[str] | None = None) -> int:
             bundle_store=FilesystemWorkspaceBundleStore(args.bundle_store),
             artifact_root=args.artifact_root,
             work_root=args.work_root,
+            asset_root=args.asset_root,
         ).execute(request)
         payload = result.to_dict()
         if args.result is not None:

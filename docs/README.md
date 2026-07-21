@@ -6,6 +6,8 @@ authority when a dated document describes an older revision.
 
 ## Current Architecture
 
+- [Structured architecture map](architecture/README.md): responsibility-based
+  Agent, Verifier, Evolve, Control, trust, artifact, and pipeline views.
 - [Architecture](architecture.md): short component and authority overview.
 - [Architecture and Data Pipeline](architecture-and-data-pipeline.md): detailed
   module map, trust boundaries, storage, and direct/queue/benchmark/evolution
@@ -22,6 +24,8 @@ authority when a dated document describes an older revision.
 - [ADR 0004](adr/0004-authority-and-artifact-ownership.md): control and artifact ownership.
 - [ADR 0005](adr/0005-default-deny-execution.md): default-deny writes and contained verification.
 - [ADR 0006](adr/0006-control-owned-task-outcomes.md): execution lineage and Control-owned semantic outcomes.
+- [ADR 0007](adr/0007-verifier-asset-and-image-binding.md): verifier asset integrity and immutable image identity.
+- [ADR 0008](adr/0008-host-owned-verification-evidence.md): per-command containers and host-owned verification evidence.
 
 ## Current Status
 
@@ -44,12 +48,17 @@ authority when a dated document describes an older revision.
   AttemptFinished fencing and TaskOutcome publication.
 - [2026-07-21 Slice B code review](reviews/2026-07-21/stage-b-code-review.md):
   resolved findings and remaining authority risks.
+- [2026-07-21 Slice C verifier integrity review](reviews/2026-07-21/stage-c-verifier-integrity.md):
+  asset/image binding, adversarial tests, and confidentiality limit.
 - [2026-07-21 code review](code-review-2026-07-21.md): prior merged-scope review.
+- [2026-07-22 verifier command isolation review](reviews/2026-07-22/verifier-command-isolation.md): post-implementation authority and failure-path review.
 - [2026-07-18 architecture conformance](architecture-conformance-review-2026-07-18.md):
   historical code/document comparison.
 
 ## Delivery Plans
 
+- [Implementation plans](plans/): current architecture and security changes with
+  explicit invariants, migration steps, and completion gates.
 - [Strict 95-point plan](sisyphus_harness_strict_review_95_plan_2026-07-21.md):
   detailed source review and target score.
 - [Execution plan](execution-plan.md): model benchmark, evolution, evidence, and release sequence.

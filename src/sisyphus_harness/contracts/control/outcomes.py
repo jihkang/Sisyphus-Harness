@@ -11,7 +11,7 @@ from ..evidence_contract import (
     EvaluationLifecycle,
     LogicalResult,
 )
-from ..verification_service import VerificationProfile
+from ..verification_service import VerificationProfile, VerifierExecutionIdentity
 from ._validation import (
     digest,
     positive_integer,
@@ -72,6 +72,8 @@ class TaskOutcome(WireModel):
     evaluation: ContractEvaluation
     decision: TaskOutcomeDecision
     evidence_finished_at: str
+    verification_execution_identity_digest: str | None = None
+    verification_execution_identity: VerifierExecutionIdentity | None = None
     schema_version: str = "sisyphus_harness.task_outcome.v1"
 
     def __post_init__(self) -> None:
@@ -130,8 +132,41 @@ class TaskOutcome(WireModel):
             raise ValueError("task outcome evaluation binding is inconsistent")
         if self.decision is not TaskOutcomeDecision.from_evaluation(self.evaluation):
             raise ValueError("task outcome decision is inconsistent with evaluation")
-        if self.schema_version != "sisyphus_harness.task_outcome.v1":
+        if self.schema_version not in {
+            "sisyphus_harness.task_outcome.v1",
+            "sisyphus_harness.task_outcome.v2",
+        }:
             raise ValueError("unsupported task-outcome schema")
+        if self.schema_version.endswith(".v1"):
+            if (
+                self.verification_execution_identity_digest is not None
+                or self.verification_execution_identity is not None
+            ):
+                raise ValueError("v1 task outcome cannot bind execution identity")
+        else:
+            if type(self.verification_execution_identity) is not VerifierExecutionIdentity:
+                raise TypeError(
+                    "v2 task outcome requires exact verifier execution identity"
+                )
+            digest(
+                self.verification_execution_identity_digest,
+                "task outcome verifier execution identity digest",
+            )
+            if (
+                self.verification_execution_identity.identity_digest
+                != self.verification_execution_identity_digest
+            ):
+                raise ValueError(
+                    "task outcome verifier execution identity digest is inconsistent"
+                )
+            if (
+                self.verification_profile.schema_version
+                != "sisyphus_harness.verification_profile.v2"
+                or self.verification_profile.asset_bundle is None
+            ):
+                raise ValueError(
+                    "v2 task outcome requires a verifier-asset-bound profile"
+                )
 
     def _validate_snapshots(self) -> None:
         if type(self.contract) is not EvidenceContract:
@@ -151,7 +186,11 @@ class TaskOutcome(WireModel):
             raise ValueError("task outcome contract and profile are inconsistent")
 
     def content_payload(self) -> dict[str, object]:
-        return WireModel.to_dict(self)
+        payload = WireModel.to_dict(self)
+        if self.schema_version.endswith(".v1"):
+            payload.pop("verification_execution_identity_digest")
+            payload.pop("verification_execution_identity")
+        return payload
 
     @property
     def outcome_digest(self) -> str:
@@ -164,7 +203,7 @@ class TaskOutcome(WireModel):
 
     @classmethod
     def from_dict(cls, raw: object) -> TaskOutcome:
-        fields = {
+        common = {
             "job_id",
             "attempt",
             "attempt_id",
@@ -188,7 +227,19 @@ class TaskOutcome(WireModel):
             "schema_version",
             "outcome_digest",
         }
-        raw = strict_object(raw, required=fields, label="task outcome")
+        if not isinstance(raw, dict):
+            raise ValueError("task outcome must be an object")
+        schema = raw.get("schema_version")
+        if schema == "sisyphus_harness.task_outcome.v1":
+            required = common
+        elif schema == "sisyphus_harness.task_outcome.v2":
+            required = common | {
+                "verification_execution_identity_digest",
+                "verification_execution_identity",
+            }
+        else:
+            raise ValueError("unsupported task-outcome schema")
+        raw = strict_object(raw, required=required, label="task outcome")
         result = cls(
             job_id=string(raw["job_id"], "task outcome job ID"),
             attempt=positive_integer(raw["attempt"], "task outcome attempt"),
@@ -242,6 +293,21 @@ class TaskOutcome(WireModel):
             evidence_finished_at=string(
                 raw["evidence_finished_at"],
                 "task outcome evidence finish time",
+            ),
+            verification_execution_identity_digest=(
+                digest(
+                    raw["verification_execution_identity_digest"],
+                    "task outcome verifier execution identity digest",
+                )
+                if raw.get("verification_execution_identity_digest") is not None
+                else None
+            ),
+            verification_execution_identity=(
+                VerifierExecutionIdentity.from_dict(
+                    raw["verification_execution_identity"]
+                )
+                if raw.get("verification_execution_identity") is not None
+                else None
             ),
             schema_version=string(raw["schema_version"], "task outcome schema"),
         )

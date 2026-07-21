@@ -19,7 +19,7 @@ Default-deny writes and contained verifier
 | --- | --- | --- |
 | A | response schema, provider capability, write allowlist, bundle verifier default, evidence classification | queue schema redesign |
 | B | AttemptFinished and TaskOutcome schema, Control transaction, CLI status projection | benchmark changes |
-| C | verifier-owned oracle bundle and full digest binding | evolution policy |
+| C | verifier-owned asset bundle, full digest binding, and host-owned command evidence | evolution policy |
 | D | shared primitives and CLI/Agent/Worker/Verifier decomposition | behavior changes |
 | E | strict typing, property/race/crash tests, platform CI | new product features |
 | F | repeated benchmark, current evidence, SBOM and governance | historical evidence rewriting |
@@ -34,7 +34,10 @@ merged only after checks and review target the current head SHA.
   passed. Its gates cover schema migration, stale-attempt fencing, immutable
   rows, idempotent Control publication, contained composition, and CLI
   projection.
-- Slices C through F remain open and must start from refreshed `main` after the
+- Slice C is implemented on its review branch with local and real-Docker gates
+  passing, including per-command containers without authority mounts and
+  host-created receipts; current-head CI and merge evidence remain pending.
+- Slices D through F remain open and must start from refreshed `main` after the
   preceding slice is merged.
 
 The living [implementation debt register](../../status/implementation-debt.md)

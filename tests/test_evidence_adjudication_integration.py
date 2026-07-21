@@ -12,6 +12,7 @@ from sisyphus_harness.adapters.receipt_observations import (
     command_fact_selector,
 )
 from sisyphus_harness.contracts.agent import AgentResult
+from sisyphus_harness.contracts.artifacts import ArtifactRef
 from sisyphus_harness.contracts.control import AttemptFinished
 from sisyphus_harness.contracts.evidence_contract import (
     AllOf,
@@ -23,12 +24,42 @@ from sisyphus_harness.contracts.evidence_contract import (
 )
 from sisyphus_harness.contracts.verification import CommandSpec
 from sisyphus_harness.contracts.verification_service import VerificationProfile
+from sisyphus_harness.contracts.verification_service import (
+    BundleVerificationRequest,
+    VerificationServiceResult,
+    VerifierExecutionIdentity,
+)
+from sisyphus_harness.infra.verifier_assets import (
+    FilesystemVerifierAssetBundleStore,
+)
 from sisyphus_harness.infra.workspace_bundle import FilesystemWorkspaceBundleStore
 from sisyphus_harness.ports.evidence_contracts import EvidenceAdjudicationRequest
 from sisyphus_harness.services.evidence_contract import ControlEvidenceContractService
 from sisyphus_harness.services.verifier import BundleVerifierService
 
 from .helpers import create_git_repo
+
+
+class _IdentityBoundVerifier:
+    def __init__(
+        self,
+        service: BundleVerifierService,
+        identity: VerifierExecutionIdentity,
+    ) -> None:
+        self.service = service
+        self.identity = identity
+
+    def execution_identity(self) -> VerifierExecutionIdentity:
+        return self.identity
+
+    def execute(
+        self,
+        request: BundleVerificationRequest,
+    ) -> VerificationServiceResult:
+        return self.service.execute(request)
+
+    def read_receipt(self, reference: ArtifactRef):
+        return self.service.read_receipt(reference)
 
 
 class EvidenceAdjudicationIntegrationTests(unittest.TestCase):
@@ -43,6 +74,21 @@ class EvidenceAdjudicationIntegrationTests(unittest.TestCase):
             (repository / "tracked.txt").write_text("implemented\n", encoding="utf-8")
             output_bundle = bundle_store.create(repository)
             self.assertNotEqual(source_bundle.bundle_id, output_bundle.bundle_id)
+
+            asset_source = root / "verifier-asset-source"
+            asset_source.mkdir()
+            (asset_source / "output_check.py").write_text(
+                "from pathlib import Path\n"
+                "assert Path('tracked.txt').read_text() == 'implemented\\n'\n",
+                encoding="utf-8",
+            )
+            asset_bundle = FilesystemVerifierAssetBundleStore(
+                root / "verifier-asset-store"
+            ).create(asset_source)
+            asset_root = root / "verifier-assets"
+            FilesystemVerifierAssetBundleStore(
+                root / "verifier-asset-store"
+            ).materialize(asset_bundle, asset_root)
 
             agent_result = AgentResult(
                 run_id="agent-integration",
@@ -71,17 +117,14 @@ class EvidenceAdjudicationIntegrationTests(unittest.TestCase):
                         name="output-check",
                         argv=(
                             sys.executable,
-                            "-c",
-                            (
-                                "from pathlib import Path; "
-                                "assert Path('tracked.txt').read_text() "
-                                "== 'implemented\\n'"
-                            ),
+                            str(asset_root / "output_check.py"),
                         ),
                         timeout_seconds=5,
                         criteria=("legacy compatibility criterion",),
                     ),
                 ),
+                asset_bundle=asset_bundle,
+                schema_version="sisyphus_harness.verification_profile.v2",
             )
             authority = "control.integration.verifier"
             clauses = (
@@ -120,11 +163,20 @@ class EvidenceAdjudicationIntegrationTests(unittest.TestCase):
                 ),
             )
 
-            service = ControlEvidenceContractService(
-                BundleVerifierService(
+            verifier = BundleVerifierService(
                     bundle_store=bundle_store,
                     artifact_root=root / "verification-artifacts",
                     work_root=root / "verification-work",
+                    asset_root=asset_root,
+                )
+            service = ControlEvidenceContractService(
+                _IdentityBoundVerifier(
+                    verifier,
+                    VerifierExecutionIdentity(
+                        runtime="docker",
+                        image_reference="integration-verifier:test",
+                        image_id="sha256:" + "d" * 64,
+                    ),
                 )
             )
             result = service.adjudicate(

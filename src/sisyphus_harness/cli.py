@@ -18,6 +18,7 @@ from .authority import (
     knowledge_index_path,
     policy_root,
     verification_artifact_root,
+    verifier_asset_bundle_root,
     workspace_bundle_root,
 )
 from .benchmarks import CodingAgentBenchmarkEvaluator, load_benchmark_dataset
@@ -45,6 +46,7 @@ from .evolution import (
     validate_evolution_id,
 )
 from .infra.workspace_bundle import FilesystemWorkspaceBundleStore
+from .infra.verifier_assets import FilesystemVerifierAssetBundleStore
 from .infra.control_outcomes import SQLiteTaskOutcomeAuthority
 from .infra.knowledge_index import KnowledgeIndexError, SQLiteKnowledgeIndex
 from .knowledge_graph import KnowledgeGraph
@@ -67,6 +69,16 @@ def build_parser() -> argparse.ArgumentParser:
 
     init_parser = subparsers.add_parser("init")
     _repo_argument(init_parser)
+
+    asset_parser = subparsers.add_parser("verifier-assets-create")
+    _repo_argument(asset_parser)
+    asset_parser.add_argument("--source", required=True)
+
+    profile_parser = subparsers.add_parser("verification-profile-create")
+    _repo_argument(profile_parser)
+    _config_argument(profile_parser)
+    profile_parser.add_argument("--profile-id", required=True)
+    profile_parser.add_argument("--asset-bundle-id", required=True)
 
     enqueue_parser = subparsers.add_parser("queue-enqueue")
     _repo_argument(enqueue_parser)
@@ -233,6 +245,25 @@ def _main(argv: Sequence[str] | None) -> int:
         database_path = authority_database_path(repo_root)
         Database(database_path).initialize()
         _print_json({"database_path": str(database_path), "status": "initialized"})
+        return 0
+    if args.command == "verifier-assets-create":
+        reference = FilesystemVerifierAssetBundleStore(
+            verifier_asset_bundle_root(repo_root)
+        ).create(_repo_path(repo_root, args.source))
+        _print_json(reference.to_dict())
+        return 0
+    if args.command == "verification-profile-create":
+        config = load_harness_config(_repo_path(repo_root, args.config))
+        reference = FilesystemVerifierAssetBundleStore(
+            verifier_asset_bundle_root(repo_root)
+        ).load(args.asset_bundle_id)
+        profile = VerificationProfile(
+            profile_id=args.profile_id,
+            commands=config.verification.selected_commands,
+            asset_bundle=reference,
+            schema_version="sisyphus_harness.verification_profile.v2",
+        )
+        _print_json(profile.to_dict())
         return 0
     if args.command == "queue-enqueue":
         payload = _json_object(args.payload_json, "--payload-json")

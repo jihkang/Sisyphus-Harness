@@ -18,11 +18,21 @@ from sisyphus_harness.contracts import (
     VerificationProfile,
     VerificationReceipt,
     VerificationServiceResult,
+    VerifierExecutionIdentity,
     WorkspaceBundleRef,
 )
 
 
 class DockerVerifierTransportTests(unittest.TestCase):
+    @staticmethod
+    def execution_identity() -> VerifierExecutionIdentity:
+        image_id = "sha256:" + "d" * 64
+        return VerifierExecutionIdentity(
+            runtime="docker",
+            image_reference="verifier:test",
+            image_id=image_id,
+        )
+
     def test_transport_rejects_unbounded_runtime_settings(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -77,22 +87,27 @@ class DockerVerifierTransportTests(unittest.TestCase):
     def test_command_enforces_declared_sandbox_and_mount_ownership(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            bundles = root / "bundles"
+            workspace = root / "workspace"
+            assets = root / "assets"
             artifacts = root / "artifacts"
-            request = root / "request.json"
-            staging = root / "staging"
             cidfile = root / "container.cid"
-            for path in (bundles, artifacts, staging):
+            for path in (workspace, assets, artifacts):
                 path.mkdir()
-            request.write_text("{}", encoding="utf-8")
+            specification = CommandSpec(
+                name="check",
+                argv=("python", "-c", "pass"),
+                timeout_seconds=1,
+                criteria=("passes",),
+            )
             command = DockerVerifierTransport(
-                bundle_store=bundles,
+                bundle_store=root / "bundles",
                 artifact_root=artifacts,
             ).command(
-                request,
-                staging_root=staging,
-                bundle_view=bundles,
+                specification,
+                workspace=workspace,
+                asset_view=assets,
                 cidfile=cidfile,
+                execution_identity=self.execution_identity(),
             )
 
         rendered = " ".join(command)
@@ -104,31 +119,31 @@ class DockerVerifierTransportTests(unittest.TestCase):
         self.assertIn("--memory 512m", rendered)
         self.assertIn("--cpus 1.0", rendered)
         self.assertIn(f"--cidfile {cidfile.resolve()}", rendered)
-        self.assertIn("dst=/bundles,readonly", rendered)
-        self.assertIn("dst=/request.json,readonly", rendered)
-        self.assertIn(f"src={staging.resolve()},dst=/artifacts", rendered)
-        self.assertNotIn(f"src={artifacts.resolve()},dst=/artifacts", rendered)
-        self.assertNotIn("dst=/artifacts,readonly", rendered)
+        self.assertIn(f"src={workspace.resolve()},dst=/workspace", rendered)
+        self.assertIn(f"src={assets.resolve()},dst=/verifier-assets,readonly", rendered)
+        self.assertNotIn("dst=/bundles", rendered)
+        self.assertNotIn("dst=/request.json", rendered)
+        self.assertNotIn("dst=/artifacts", rendered)
         self.assertIn("/tmp:rw,noexec,nosuid,nodev", rendered)
-        self.assertIn("/work:rw,exec,nosuid,nodev", rendered)
-        self.assertIn("--work-root /work", rendered)
+        self.assertIn("--workdir /workspace", rendered)
+        self.assertIn("--entrypoint python", rendered)
+        self.assertIn(self.execution_identity().image_id, command)
+        self.assertTrue(command[-2:] == ["-c", "pass"])
         if hasattr(os, "getuid"):
             self.assertIn(f"--user {os.getuid()}:{os.getgid()}", rendered)
 
     def test_command_quotes_mount_sources_containing_commas(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "source,with,commas"
-            bundles = root / "bundles"
-            staging = root / "staging"
-            request = root / "request.json"
+            workspace = root / "workspace"
             command = DockerVerifierTransport(
-                bundle_store=bundles,
+                bundle_store=root / "bundles",
                 artifact_root=root / "artifacts",
             ).command(
-                request,
-                staging_root=staging,
-                bundle_view=bundles,
+                CommandSpec("check", ("python",), 1, ("passes",)),
+                workspace=workspace,
                 cidfile=root / "container.cid",
+                execution_identity=self.execution_identity(),
             )
 
         mount_values = [
@@ -137,9 +152,8 @@ class DockerVerifierTransportTests(unittest.TestCase):
             if value == "--mount"
         ]
         parsed = [next(csv.reader([value])) for value in mount_values]
-        self.assertIn(f"src={bundles.resolve()}", parsed[0])
-        self.assertIn(f"src={staging.resolve()}", parsed[1])
-        self.assertIn(f"src={request.resolve()}", parsed[2])
+        self.assertEqual(len(parsed), 1)
+        self.assertIn(f"src={workspace.resolve()}", parsed[0])
 
     def test_execute_rejects_result_bound_to_another_workspace(self) -> None:
         digest = "sha256:" + "1" * 64

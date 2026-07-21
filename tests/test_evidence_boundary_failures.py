@@ -36,15 +36,21 @@ from sisyphus_harness.services.evidence_contract import (
 from tests.test_evidence_adjudication import (
     ResultVerifier,
     _AUTHORITY,
+    _DIGEST_A,
     _DIGEST_C,
+    _bundle,
     _contract,
     _job,
+    _identity,
     _profile,
     _request,
 )
 
 
 class InvalidVerifierOutput:
+    def execution_identity(self):
+        return _identity()
+
     def execute(self, request):
         del request
         return object()
@@ -136,6 +142,8 @@ def _bound_verification(
         run_id=adjudication_request.run_id,
         workspace_bundle=adjudication_request.job_result.output_bundle,
         profile=adjudication_request.profile,
+        execution_identity=_identity(),
+        schema_version="sisyphus_harness.bundle_verification_request.v2",
     )
     result = ResultVerifier(command_passed=command_passed).execute(request)
     observations = ReceiptObservationAdapter().adapt(
@@ -190,12 +198,15 @@ class EvidenceBoundaryFailureTests(unittest.TestCase):
 
     def test_binding_validator_requires_v2_and_exact_receipt_request(self) -> None:
         request, result, _ = _bound_verification()
-        legacy_receipt = replace(
-            result.receipt,
-            schema_version="sisyphus_harness.verification.v1",
+        legacy_receipt = replace(result.receipt)
+        object.__setattr__(
+            legacy_receipt,
+            "schema_version",
+            "sisyphus_harness.verification.v2",
         )
-        legacy_result = replace(result, receipt=legacy_receipt)
-        with self.assertRaisesRegex(VerificationBindingError, "digest-bound v2"):
+        legacy_result = replace(result)
+        object.__setattr__(legacy_result, "receipt", legacy_receipt)
+        with self.assertRaisesRegex(VerificationBindingError, "digest-bound receipt"):
             validate_final_verification_bindings(request, legacy_result)
 
         tampered_result = replace(result)
@@ -207,6 +218,40 @@ class EvidenceBoundaryFailureTests(unittest.TestCase):
             "receipt is bound to a different request",
         ):
             validate_final_verification_bindings(request, tampered_result)
+
+    def test_binding_validator_rejects_every_v3_service_binding_substitution(
+        self,
+    ) -> None:
+        request, result, _ = _bound_verification()
+        mutations = (
+            ("workspace_bundle_id", _bundle("c").bundle_id),
+            ("profile_digest", _DIGEST_C),
+            ("execution_identity_digest", _DIGEST_A),
+            (
+                "verifier_asset_bundle_id",
+                "verifier-assets:sha256:" + "f" * 64,
+            ),
+        )
+        for field, value in mutations:
+            with self.subTest(field=field):
+                receipt = replace(result.receipt)
+                object.__setattr__(receipt, field, value)
+                tampered = replace(result)
+                object.__setattr__(tampered, "receipt", receipt)
+                with self.assertRaisesRegex(
+                    VerificationBindingError,
+                    "service bindings are inconsistent",
+                ):
+                    validate_final_verification_bindings(request, tampered)
+
+        changed_identity = replace(_identity(), image_id=_DIGEST_A)
+        tampered = replace(result)
+        object.__setattr__(tampered, "execution_identity", changed_identity)
+        with self.assertRaisesRegex(
+            VerificationBindingError,
+            "different execution identity",
+        ):
+            validate_final_verification_bindings(request, tampered)
 
     def test_binding_validator_rejects_tampered_artifact_identity(self) -> None:
         request, result, _ = _bound_verification()
@@ -318,6 +363,8 @@ class EvidenceBoundaryFailureTests(unittest.TestCase):
             run_id=adjudication_request.run_id,
             workspace_bundle=adjudication_request.job_result.output_bundle,
             profile=profile,
+            execution_identity=_identity(),
+            schema_version="sisyphus_harness.bundle_verification_request.v2",
         )
         result = ResultVerifier(command_passed=True).execute(request)
 

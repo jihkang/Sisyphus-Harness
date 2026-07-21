@@ -40,7 +40,9 @@ from sisyphus_harness.contracts.verification_service import (
     BundleVerificationRequest,
     VerificationProfile,
     VerificationServiceResult,
+    VerifierExecutionIdentity,
 )
+from sisyphus_harness.contracts.verifier_assets import VerifierAssetBundleRef
 from sisyphus_harness.contracts.workspace import WorkspaceBundleRef
 from sisyphus_harness.ports.evidence_contracts import (
     EvidenceAdjudicationRequest,
@@ -54,6 +56,24 @@ _AUTHORITY = "control.verifier.local"
 _DIGEST_A = "sha256:" + "a" * 64
 _DIGEST_B = "sha256:" + "b" * 64
 _DIGEST_C = "sha256:" + "c" * 64
+
+
+def _asset() -> VerifierAssetBundleRef:
+    return VerifierAssetBundleRef(
+        bundle_id="verifier-assets:" + _DIGEST_A,
+        manifest_sha256=_DIGEST_A,
+        tree_hash=_DIGEST_B,
+        total_size_bytes=10,
+        entry_count=1,
+    )
+
+
+def _identity() -> VerifierExecutionIdentity:
+    return VerifierExecutionIdentity(
+        runtime="docker",
+        image_reference="verifier:test",
+        image_id=_DIGEST_C,
+    )
 
 
 def _bundle(character: str) -> WorkspaceBundleRef:
@@ -104,6 +124,8 @@ def _profile() -> VerificationProfile:
                 criteria=("semantic criterion must not become evidence",),
             ),
         ),
+        asset_bundle=_asset(),
+        schema_version="sisyphus_harness.verification_profile.v2",
     )
 
 
@@ -150,6 +172,9 @@ class ResultVerifier:
         self.mutation = mutation
         self.requests: list[BundleVerificationRequest] = []
         self.latest_result: VerificationServiceResult | None = None
+
+    def execution_identity(self) -> VerifierExecutionIdentity:
+        return _identity()
 
     def execute(self, request: BundleVerificationRequest) -> VerificationServiceResult:
         self.requests.append(request)
@@ -200,21 +225,18 @@ class ResultVerifier:
             workspace_state_after=request.workspace_bundle.tree_hash,
             workspace_unchanged=True,
             request_digest=bound_request_digest,
+            schema_version="sisyphus_harness.verification.v3",
+            workspace_bundle_id=request.workspace_bundle.bundle_id,
+            profile_digest=request.profile.profile_digest,
+            execution_identity_digest=request.execution_identity.identity_digest,
+            verifier_asset_bundle_id=request.profile.asset_bundle.bundle_id,
         )
         if self.mutation == "tree":
             object.__setattr__(receipt, "workspace_state_before", _DIGEST_C)
         result = VerificationServiceResult(
             request_digest=bound_request_digest,
-            workspace_bundle_id=(
-                "workspace:wrong"
-                if self.mutation == "bundle"
-                else request.workspace_bundle.bundle_id
-            ),
-            profile_digest=(
-                _DIGEST_C
-                if self.mutation == "profile"
-                else request.profile.profile_digest
-            ),
+            workspace_bundle_id=request.workspace_bundle.bundle_id,
+            profile_digest=request.profile.profile_digest,
             receipt=receipt,
             receipt_artifact=ArtifactRef(
                 artifact_id=f"{receipt_run_id}/receipt.json",
@@ -226,7 +248,13 @@ class ResultVerifier:
                     else VERIFICATION_RECEIPT_MEDIA_TYPE
                 ),
             ),
+            execution_identity=request.execution_identity,
+            schema_version="sisyphus_harness.verification_service_result.v2",
         )
+        if self.mutation == "bundle":
+            object.__setattr__(result, "workspace_bundle_id", "workspace:wrong")
+        if self.mutation == "profile":
+            object.__setattr__(result, "profile_digest", _DIGEST_C)
         self.latest_result = result
         return result
 
@@ -359,6 +387,9 @@ class StaticResultVerifier:
         self.transform = transform
         self.latest_result: VerificationServiceResult | None = None
 
+    def execution_identity(self) -> VerifierExecutionIdentity:
+        return _identity()
+
     def execute(self, request: BundleVerificationRequest) -> VerificationServiceResult:
         result = ResultVerifier(command_passed=True).execute(request)
         self.latest_result = self.transform(result)
@@ -423,6 +454,8 @@ class EvidenceAdjudicationTests(unittest.TestCase):
             run_id=adjudication_request.run_id,
             workspace_bundle=adjudication_request.job_result.output_bundle,
             profile=adjudication_request.profile,
+            execution_identity=_identity(),
+            schema_version="sisyphus_harness.bundle_verification_request.v2",
         )
         service_result = verifier.execute(bundle_request)
         adapter = ReceiptObservationAdapter()
@@ -510,6 +543,11 @@ class EvidenceAdjudicationTests(unittest.TestCase):
             )
             return replace(valid, verification_result=result)
 
+        def wrong_result_field(field: str, value: str):
+            result = replace(valid.verification_result)
+            object.__setattr__(result, field, value)
+            return replace(valid, verification_result=result)
+
         mutations = (
             (
                 lambda: replace(valid, output_bundle_id=_bundle("c").bundle_id),
@@ -517,22 +555,16 @@ class EvidenceAdjudicationTests(unittest.TestCase):
             ),
             (wrong_request_digest, "does not match its request"),
             (
-                lambda: replace(
-                    valid,
-                    verification_result=replace(
-                        valid.verification_result,
-                        workspace_bundle_id=_bundle("c").bundle_id,
-                    ),
+                lambda: wrong_result_field(
+                    "workspace_bundle_id",
+                    _bundle("c").bundle_id,
                 ),
                 "does not match the output bundle",
             ),
             (
-                lambda: replace(
-                    valid,
-                    verification_result=replace(
-                        valid.verification_result,
-                        profile_digest=_DIGEST_C,
-                    ),
+                lambda: wrong_result_field(
+                    "profile_digest",
+                    _DIGEST_C,
                 ),
                 "does not match the profile",
             ),
@@ -673,6 +705,8 @@ class EvidenceAdjudicationTests(unittest.TestCase):
             run_id=request.run_id,
             workspace_bundle=request.job_result.output_bundle,
             profile=request.profile,
+            execution_identity=_identity(),
+            schema_version="sisyphus_harness.bundle_verification_request.v2",
         )
         valid = ResultVerifier(command_passed=True).execute(bundle_request)
         with self.assertRaisesRegex(ValueError, "passing.*inconsistent"):

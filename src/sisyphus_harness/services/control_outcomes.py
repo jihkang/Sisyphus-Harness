@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from ..contracts.control import TaskOutcome, TaskOutcomeDecision
+from ..contracts.verification_service import VerifierExecutionIdentity
 from ..ports.control_outcomes import (
     TaskOutcomeAuthorityPort,
     TaskOutcomeRequest,
@@ -72,6 +73,22 @@ class ControlTaskOutcomeService:
             )
         verification_request = adjudication.verification_request
         verification = adjudication.verification_result
+        execution_identity = verification_request.execution_identity
+        if (
+            request.profile.schema_version
+            != "sisyphus_harness.verification_profile.v2"
+            or request.profile.asset_bundle is None
+            or verification_request.schema_version
+            != "sisyphus_harness.bundle_verification_request.v2"
+            or verification.schema_version
+            != "sisyphus_harness.verification_service_result.v2"
+            or verification.receipt.schema_version
+            != "sisyphus_harness.verification.v3"
+            or type(execution_identity) is not VerifierExecutionIdentity
+        ):
+            raise ControlTaskOutcomeError(
+                "Control outcome requires asset- and identity-bound v2 verification"
+            )
         if (
             adjudication.job_id != attempt.job_id
             or adjudication.attempt_id != attempt.attempt_id
@@ -82,7 +99,19 @@ class ControlTaskOutcomeService:
             or verification.request_digest != verification_request.request_digest
             or verification.workspace_bundle_id != attempt.output_bundle.bundle_id
             or verification.profile_digest != request.profile.profile_digest
+            or verification.execution_identity
+            != verification_request.execution_identity
             or verification.receipt.run_id != request.run_id
+            or verification.receipt.request_digest
+            != verification_request.request_digest
+            or verification.receipt.workspace_bundle_id
+            != attempt.output_bundle.bundle_id
+            or verification.receipt.profile_digest
+            != request.profile.profile_digest
+            or verification.receipt.execution_identity_digest
+            != execution_identity.identity_digest
+            or verification.receipt.verifier_asset_bundle_id
+            != request.profile.asset_bundle.bundle_id
         ):
             raise ControlTaskOutcomeError(
                 "adjudication result is not bound to the authoritative attempt"
@@ -109,6 +138,9 @@ class ControlTaskOutcomeService:
             evaluation=evaluation,
             decision=TaskOutcomeDecision.from_evaluation(evaluation),
             evidence_finished_at=verification.receipt.finished_at,
+            verification_execution_identity_digest=execution_identity.identity_digest,
+            verification_execution_identity=execution_identity,
+            schema_version="sisyphus_harness.task_outcome.v2",
         )
         return self.authority.publish_task_outcome(
             expected_attempt=attempt,

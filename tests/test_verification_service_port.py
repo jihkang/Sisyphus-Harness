@@ -6,12 +6,17 @@ import unittest
 
 from sisyphus_harness.adapters.docker_verifier import DockerVerifierTransport
 from sisyphus_harness.infra.workspace_bundle import FilesystemWorkspaceBundleStore
-from sisyphus_harness.ports.verification_service import VerificationServicePort
+from sisyphus_harness.ports.verification_service import (
+    VerificationExecutorPort,
+    VerificationServicePort,
+)
 from sisyphus_harness.services.verifier import BundleVerifierService
 
 
 class VerificationServicePortTests(unittest.TestCase):
-    def test_local_and_container_transports_share_control_side_port(self) -> None:
+    def test_executor_and_host_transport_have_distinct_identity_responsibility(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             local = BundleVerifierService(
@@ -24,7 +29,8 @@ class VerificationServicePortTests(unittest.TestCase):
                 artifact_root=root / "artifacts",
             )
 
-            self.assertIsInstance(local, VerificationServicePort)
+            self.assertIsInstance(local, VerificationExecutorPort)
+            self.assertNotIsInstance(local, VerificationServicePort)
             self.assertIsInstance(container, VerificationServicePort)
 
 

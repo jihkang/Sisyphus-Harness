@@ -37,11 +37,15 @@ stagnation detection, budgets, and final verification.
 Executes operator-defined argv without a shell. It records full stdout and
 stderr, executable identity, timeout and exit state, and before/after workspace
 hashes. A verifier that mutates the workspace cannot produce a passing receipt.
-The bundle service verifies an immutable workspace reference. The optional
-Docker transport runs that service with no network and bounded resources, gives
-it only the requested archive/reference pair in a fresh read-only bundle view
-and a fresh writable staging directory, bounds combined transport output, validates
-the source objects and receipt on the host, and atomically publishes a validated run.
+The compatibility bundle service verifies an immutable workspace reference and
+an exact content-addressed verifier asset tree. The default Docker transport
+resolves and rechecks an immutable image ID, materializes the workspace and
+assets on the host, and runs each `CommandSpec` as PID 1 in a separate no-network,
+resource-bounded container. Candidate code receives only the workspace
+read-write and exact assets read-only; request, bundle CAS, and evidence paths
+are absent. The host bounds output, measures workspace and asset state, constructs
+the v3 receipt, validates every source/result binding, and atomically publishes
+the run. The asset mount protects integrity, not secrecy from candidate code.
 
 `contracts/control/`, `contracts/evidence_contract.py`, `evidence_contract.py`,
 `services/evidence_contract.py`, `services/control_outcomes.py`, and

@@ -8,6 +8,7 @@ import unittest
 
 from sisyphus_harness.adapters.bundle_verification import BundleVerificationAdapter
 from sisyphus_harness.contracts.verification import CommandSpec
+from sisyphus_harness.contracts.verification_service import VerifierExecutionIdentity
 from sisyphus_harness.infra.workspace_bundle import FilesystemWorkspaceBundleStore
 from sisyphus_harness.services.verifier import BundleVerifierService
 
@@ -18,6 +19,13 @@ class _TimeoutRecordingService:
     def __init__(self, delegate: BundleVerifierService) -> None:
         self.delegate = delegate
         self.timeout_seconds: float | None = None
+
+    def execution_identity(self) -> VerifierExecutionIdentity:
+        return VerifierExecutionIdentity(
+            runtime="docker",
+            image_reference="verifier:test",
+            image_id="sha256:" + "a" * 64,
+        )
 
     def execute(self, request):
         raise AssertionError("deadline-aware execution must use the bounded transport")

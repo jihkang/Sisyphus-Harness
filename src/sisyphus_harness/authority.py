@@ -68,6 +68,10 @@ def workspace_bundle_root(repo_root: Path) -> Path:
     return authority_root(repo_root) / "artifacts" / "workspace-bundles"
 
 
+def verifier_asset_bundle_root(repo_root: Path) -> Path:
+    return authority_root(repo_root) / "artifacts" / "verifier-assets"
+
+
 def attempt_workspace_root(repo_root: Path) -> Path:
     return authority_root(repo_root) / "attempts"
 
