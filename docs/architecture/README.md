@@ -56,7 +56,7 @@ has current-revision test and delivery evidence.
 | Boundary | Current status | Primary open debt |
 | --- | --- | --- |
 | Agent | `AMBER` Partial | `SH-ARCH-002`, `SH-IO-001` |
-| Verifier | `AMBER` Host-owned evidence implemented locally; CI/merge pending, confidentiality unclaimed | `SH-VERIFY-001`, `SH-VERIFY-002`, `SH-ORACLE-001` |
+| Verifier | `GREEN` Asset/image integrity and host-owned evidence conform at `5d872bc`; confidentiality unclaimed | closed `SH-VERIFY-001`/`SH-VERIFY-002`; open `SH-ORACLE-001` |
 | Evolve | `AMBER` Partial | `SH-EVOLVE-001`, `SH-BENCH-001`, `SH-EVIDENCE-001` |
 | Control | `AMBER` Partial | `SH-CTRL-001`, `SH-GRAPH-001`, `SH-TRUST-001` |
 

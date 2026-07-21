@@ -64,8 +64,8 @@ The current Control chain includes:
 - per-command containers with no request, bundle CAS, or evidence mount;
 - host-only stdout/stderr, command-result, receipt, and service-result creation.
 
-Current-head CI and merge evidence remain under `SH-VERIFY-001` and
-`SH-VERIFY-002`. A read-only
+PR #11 at `5d872bc` closed `SH-VERIFY-001` and `SH-VERIFY-002` after all five
+jobs in CI run `29848008998` passed. A read-only
 asset mount proves integrity against writes but not secrecy from adversarial code
 in the same mount namespace. Confidential hidden tests remain a separate
 `SH-ORACLE-001` evaluator boundary.

@@ -3,7 +3,7 @@
 - Review date: 2026-07-22
 - Base: `main@1d4632c54fde78d195efce1f62ac56c5fbac81fe`
 - Reviewed state: working branch before delivery commit
-- Disposition: no unresolved High finding; PR CI and merge evidence pending
+- Disposition: no unresolved High finding; merged by PR #11 at `5d872bc`
 
 ## Scope
 
@@ -56,5 +56,13 @@ documented as a weaker compatibility topology.
    carries no host-owned-evidence claim.
 3. The local OS account, Docker daemon, kernel, admitted image, and filesystem
    authority root remain trusted.
-4. Current-head CI, review, merge, and post-merge closure evidence are required
-   before `SH-VERIFY-001` or `SH-VERIFY-002` can become `GREEN`.
+4. Confidentiality, release attestation, and module/test decomposition remain
+   separate debt; they do not weaken the merged evidence-ownership invariant.
+
+## Delivery Evidence
+
+PR #11 tested head `c0650c7b9d24fde857524107f559833470176d55` in CI run
+`29848008998`. `static-and-container`, Python 3.11 and 3.14 `core`, `evolution`,
+and `package-and-evidence` all passed before the PR merged as
+`5d872bc6a064e5f5f36aa46df31813a4ca2d4608`. The local `main` branch was fetched
+and fast-forwarded to the same revision before this closure record was created.
