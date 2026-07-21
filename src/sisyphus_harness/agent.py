@@ -35,15 +35,15 @@ You have no shell, lifecycle, merge, release, policy activation, or network auth
 Return exactly one JSON object and no prose.
 
 Tool response:
-{"type":"tool","tool":"list_files|read_file|search_text|write_file|replace_text|delete_file","arguments":{...},"reason":"short reason"}
+{"decision":{"type":"tool","tool":"list_files|read_file|search_text|write_file|replace_text|delete_file","arguments":{...},"reason":"short reason"}}
 
 Finish response:
-{"type":"finish","summary":"what changed and why the criteria should pass"}
+{"decision":{"type":"finish","summary":"what changed and why the criteria should pass"}}
 
 Tool argument contracts:
-- list_files: {"prefix": optional relative directory; "." means workspace root}
+- list_files: {"prefix": relative directory; use "." for workspace root}
 - read_file: {"path": relative path, "start_line": optional positive integer, "end_line": optional positive integer}
-- search_text: {"query": exact literal substring (for example "def parse_port"; never regex-escape punctuation), "path": optional relative file or directory; "." means workspace root, "max_results": optional positive integer}
+- search_text: {"query": exact literal substring (for example "def parse_port"; never regex-escape punctuation), "path": relative file or directory; use "." for workspace root, "max_results": optional positive integer or null}
 - write_file: use "content" for one-line content or "content_lines" for multi-line content, plus "path" and "expected_sha256" (current hash or null for a new file)
 - replace_text: use "old"/"new" for one-line text or "old_lines"/"new_lines" arrays for multi-line text, plus "path" and current "expected_sha256"; never mix modes
 - delete_file: {"path": relative path, "expected_sha256": current hash}
@@ -74,6 +74,7 @@ class LocalCodingAgent:
         cadence: CadencePolicy,
         strategy_prompt: str,
         protected_write_paths: tuple[Path, ...] = (),
+        allowed_write_paths: tuple[Path, ...] | None = None,
     ) -> None:
         self.provider = provider
         self.verifier = verifier
@@ -82,6 +83,7 @@ class LocalCodingAgent:
         self.cadence = cadence
         self.strategy_prompt = strategy_prompt
         self.protected_write_paths = protected_write_paths
+        self.allowed_write_paths = allowed_write_paths
 
     def run(
         self,
@@ -117,6 +119,11 @@ class LocalCodingAgent:
                 "protected_write_paths": [
                     str(path) for path in self.protected_write_paths
                 ],
+                "allowed_write_paths": (
+                    None
+                    if self.allowed_write_paths is None
+                    else [str(path) for path in self.allowed_write_paths]
+                ),
                 "started_at": _utc_now(),
                 "workspace_snapshot": initial.to_dict(),
             }
@@ -126,6 +133,7 @@ class LocalCodingAgent:
             max_file_bytes=self.limits.max_file_bytes,
             max_output_chars=self.limits.max_tool_output_chars,
             protected_write_paths=self.protected_write_paths,
+            allowed_write_paths=self.allowed_write_paths,
             deadline=deadline,
         )
         events: list[dict[str, Any]] = []

@@ -31,6 +31,14 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(decision.kind, "finish")
         self.assertEqual(decision.summary, "implemented and verified")
 
+    def test_parses_strict_root_object_envelope(self) -> None:
+        decision = parse_agent_decision(
+            '{"decision":{"type":"finish","summary":"verified"}}'
+        )
+
+        self.assertEqual(decision.kind, "finish")
+        self.assertEqual(decision.summary, "verified")
+
     def test_rejects_unknown_tool_and_fields(self) -> None:
         with self.assertRaisesRegex(ProtocolError, "unsupported tool"):
             parse_agent_decision(
@@ -55,7 +63,10 @@ class ProtocolTests(unittest.TestCase):
 
     def test_response_schema_enforces_each_tool_argument_contract(self) -> None:
         schema = AGENT_DECISION_RESPONSE_FORMAT["json_schema"]["schema"]
-        variants = schema["oneOf"]
+        self.assertEqual(schema["type"], "object")
+        self.assertEqual(schema["required"], ["decision"])
+        self.assertFalse(schema["additionalProperties"])
+        variants = schema["properties"]["decision"]["anyOf"]
         tool_variants = {
             variant["properties"]["tool"]["const"]: variant
             for variant in variants
@@ -65,7 +76,7 @@ class ProtocolTests(unittest.TestCase):
         self.assertEqual(set(tool_variants), set(TOOL_ARGUMENT_SCHEMAS))
         replace_variants = tool_variants["replace_text"]["properties"][
             "arguments"
-        ]["oneOf"]
+        ]["anyOf"]
         self.assertEqual(
             {frozenset(variant["required"]) for variant in replace_variants},
             {
@@ -78,6 +89,22 @@ class ProtocolTests(unittest.TestCase):
         self.assertTrue(
             all(not variant["additionalProperties"] for variant in replace_variants)
         )
+
+        def assert_strict_objects(node: object) -> None:
+            if isinstance(node, dict):
+                if node.get("type") == "object" and "properties" in node:
+                    self.assertEqual(
+                        set(node["required"]),
+                        set(node["properties"]),
+                    )
+                    self.assertFalse(node["additionalProperties"])
+                for value in node.values():
+                    assert_strict_objects(value)
+            elif isinstance(node, list):
+                for value in node:
+                    assert_strict_objects(value)
+
+        assert_strict_objects(schema)
 
 
 if __name__ == "__main__":

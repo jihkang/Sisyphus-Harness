@@ -32,16 +32,41 @@ def read_revision_path(repository_root: Path, revision: str, path: str) -> bytes
     return completed.stdout
 
 
+def current_revision(repository_root: Path) -> str:
+    completed = subprocess.run(
+        ["git", "-C", str(repository_root), "rev-parse", "HEAD"],
+        check=False,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    revision = completed.stdout.strip()
+    if completed.returncode != 0 or re.fullmatch(r"[0-9a-f]{40}", revision) is None:
+        raise RuntimeError("could not resolve the current Git revision")
+    return revision
+
+
 def main() -> int:
     evidence_root = Path(__file__).resolve().parent
     repository_root = evidence_root.parents[1]
     manifest_path = evidence_root / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    if manifest.get("schema_version") != "sisyphus_harness.evidence_manifest.v2":
+        raise RuntimeError("unsupported evidence manifest schema")
+    claim_scope = manifest.get("claim_scope")
+    if claim_scope not in {"historical", "current_release"}:
+        raise RuntimeError("claim_scope must be historical or current_release")
     source_revision = manifest.get("source_revision")
     if not isinstance(source_revision, str) or re.fullmatch(
         r"[0-9a-f]{40}", source_revision
     ) is None:
         raise RuntimeError("source_revision must be a full lowercase Git commit SHA")
+    head_revision = current_revision(repository_root)
+    source_matches_head = source_revision == head_revision
+    if claim_scope == "current_release" and not source_matches_head:
+        raise RuntimeError(
+            "current_release evidence source_revision does not match current HEAD"
+        )
 
     checked = 0
     for entry in manifest["source_inputs"]:
@@ -77,7 +102,16 @@ def main() -> int:
             f"evidence inventory mismatch; missing={missing}, extra={extra}"
         )
 
-    print(json.dumps({"checked_files": checked, "status": "verified"}))
+    print(
+        json.dumps(
+            {
+                "checked_files": checked,
+                "claim_scope": claim_scope,
+                "source_matches_head": source_matches_head,
+                "status": "verified",
+            }
+        )
+    )
     return 0
 
 

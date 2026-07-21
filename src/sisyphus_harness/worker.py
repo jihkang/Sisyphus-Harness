@@ -11,13 +11,10 @@ import subprocess
 import threading
 from typing import Any, Callable
 
-from .adapters.in_process import InProcessAgentRunFactory
 from .authority import (
-    agent_artifact_root,
     attempt_workspace_root,
     authority_database_path,
     policy_root,
-    verification_artifact_root,
     workspace_bundle_root,
 )
 from .config import ProviderSettings, load_harness_config
@@ -30,6 +27,7 @@ from .models import JobRecord
 from .policy import PolicyRegistry
 from .provider import ChatProvider, OpenAICompatibleProvider
 from .queue import JobQueue, LeaseError
+from .runtime import build_agent_run
 from .workspace import contained_path
 
 
@@ -283,16 +281,13 @@ class CodingWorker:
             policy = payload.policy_snapshot or self._policy(config, payload.policy)
             run_prefix = payload.run_id or job.job_id
             artifact_run_id = f"{run_prefix}-attempt-{job.attempts:04d}"
-            agent_result = InProcessAgentRunFactory(
+            agent_result = build_agent_run(
+                authority_root=self.repo_root,
+                workspace=workspace,
+                config_path=config_path,
+                config=config,
                 provider=self.provider_factory(config.provider),
-                limits=config.limits,
-                protected_write_paths=(config_path,),
-            ).create(
                 policy=policy,
-                agent_artifact_root=agent_artifact_root(self.repo_root),
-                verification_artifact_root=verification_artifact_root(
-                    self.repo_root
-                ),
             ).run(
                 workspace,
                 AgentTask(payload.task, payload.criteria),

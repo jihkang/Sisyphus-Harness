@@ -1,6 +1,7 @@
 {
-  "schema_version": "sisyphus_harness.evidence_manifest.v1",
+  "schema_version": "sisyphus_harness.evidence_manifest.v2",
   "created_at": "2026-07-17T19:31:35Z",
+  "claim_scope": "historical",
   "source_revision": "47539e0d69a70256fcb0f0bb6b96176b67dfa99d",
   "evolution_id": "qwen30b-gepa-20260718-11",
   "candidate_hash": "sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027",
@@ -396,8 +397,8 @@
   "bundled_artifacts": [
     {
       "path": "evidence/qwen30b-final/README.md",
-      "sha256": "efbe4f3d87aafb8ed003834346d1d0d793c12a03533069422ae5529c96ac1d24",
-      "size_bytes": 5175
+      "sha256": "5cc28165e1f6cbd37fb95d077dab13eff01458b42c241b52ea6e4e6933710e86",
+      "size_bytes": 5364
     },
     {
       "path": "evidence/qwen30b-final/artifacts/direct/change.diff",
@@ -636,8 +637,8 @@
     },
     {
       "path": "evidence/qwen30b-final/verify_manifest.py",
-      "sha256": "034410d35dc8b331358131532669a92c7de58bc6f6c6ff48d8b5379071843ee4",
-      "size_bytes": 3009
+      "sha256": "10ccab85b59db77fc12cb316d0f61eb7f7cf380c490f25dd82a910e844031958",
+      "size_bytes": 4315
     }
   ],
   "external_inputs": [

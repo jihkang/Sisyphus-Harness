@@ -78,6 +78,45 @@ class ProviderTests(unittest.TestCase):
         request = urlopen.call_args.args[0]
         self.assertNotIn("response_format", json.loads(request.data))
 
+    def test_json_object_capability_uses_explicit_fallback_contract(self) -> None:
+        provider = OpenAICompatibleProvider(
+            ProviderSettings(
+                base_url=self.settings.base_url,
+                model="local",
+                response_format="json_object",
+            )
+        )
+        payload = {"choices": [{"message": {"content": "{}"}}]}
+        with patch(
+            "urllib.request.urlopen",
+            return_value=_Response(payload),
+        ) as urlopen:
+            provider.complete((ChatMessage(role="user", content="task"),))
+
+        request = urlopen.call_args.args[0]
+        self.assertEqual(
+            json.loads(request.data)["response_format"],
+            {"type": "json_object"},
+        )
+
+    def test_strict_schema_rejection_has_actionable_capability_error(self) -> None:
+        error = urllib.error.HTTPError(
+            url=self.settings.base_url,
+            code=400,
+            msg="invalid schema",
+            hdrs=None,
+            fp=BytesIO(b'{"error":"unsupported response_format"}'),
+        )
+        try:
+            with patch("urllib.request.urlopen", side_effect=error):
+                with self.assertRaisesRegex(
+                    ProviderError,
+                    "provider.response_format = 'json_object'",
+                ):
+                    self.provider.complete((ChatMessage(role="user", content="task"),))
+        finally:
+            error.close()
+
     def test_explicit_deadline_clamps_provider_timeout(self) -> None:
         payload = {"choices": [{"message": {"content": "done"}}]}
         with patch(

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 import math
 import os
@@ -7,6 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from sisyphus_harness.adapters import DockerVerifierError, DockerVerifierTransport
 from sisyphus_harness.contracts import (
@@ -29,6 +31,8 @@ class DockerVerifierTransportTests(unittest.TestCase):
                 {"timeout_seconds": math.inf},
                 {"max_output_bytes": 0},
                 {"max_output_bytes": True},
+                {"image": "--privileged"},
+                {"image": "unsafe image"},
             )
             for settings in cases:
                 with self.subTest(settings=settings):
@@ -38,6 +42,37 @@ class DockerVerifierTransportTests(unittest.TestCase):
                             artifact_root=root / "artifacts",
                             **settings,
                         )
+
+    def test_deadline_override_clamps_transport_timeout(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            transport = DockerVerifierTransport(
+                bundle_store=root / "bundles",
+                artifact_root=root / "artifacts",
+                timeout_seconds=30,
+            )
+            request = SimpleNamespace()
+            expected = SimpleNamespace()
+            with patch.object(
+                DockerVerifierTransport,
+                "execute",
+                autospec=True,
+                return_value=expected,
+            ) as execute:
+                result = transport.execute_with_timeout(
+                    request,
+                    timeout_seconds=1.25,
+                )
+
+        self.assertIs(result, expected)
+        bounded, observed_request = execute.call_args.args
+        self.assertIs(observed_request, request)
+        self.assertEqual(bounded.timeout_seconds, 1.25)
+
+        for invalid in (0, math.inf):
+            with self.subTest(invalid=invalid):
+                with self.assertRaises(ValueError):
+                    transport.execute_with_timeout(request, timeout_seconds=invalid)
 
     def test_command_enforces_declared_sandbox_and_mount_ownership(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -79,6 +114,32 @@ class DockerVerifierTransportTests(unittest.TestCase):
         self.assertIn("--work-root /work", rendered)
         if hasattr(os, "getuid"):
             self.assertIn(f"--user {os.getuid()}:{os.getgid()}", rendered)
+
+    def test_command_quotes_mount_sources_containing_commas(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "source,with,commas"
+            bundles = root / "bundles"
+            staging = root / "staging"
+            request = root / "request.json"
+            command = DockerVerifierTransport(
+                bundle_store=bundles,
+                artifact_root=root / "artifacts",
+            ).command(
+                request,
+                staging_root=staging,
+                bundle_view=bundles,
+                cidfile=root / "container.cid",
+            )
+
+        mount_values = [
+            command[index + 1]
+            for index, value in enumerate(command[:-1])
+            if value == "--mount"
+        ]
+        parsed = [next(csv.reader([value])) for value in mount_values]
+        self.assertIn(f"src={bundles.resolve()}", parsed[0])
+        self.assertIn(f"src={staging.resolve()}", parsed[1])
+        self.assertIn(f"src={request.resolve()}", parsed[2])
 
     def test_execute_rejects_result_bound_to_another_workspace(self) -> None:
         digest = "sha256:" + "1" * 64

@@ -1,6 +1,8 @@
-# Qwen3 30.5B Final Evidence
+# Historical Qwen3 30.5B Evidence
 
-This bundle records the accepted local-model evolution and the subsequent
+This bundle is historical evidence bound to revision
+`47539e0d69a70256fcb0f0bb6b96176b67dfa99d`. It does not establish performance
+or security properties for current `main`. It records the accepted local-model evolution and the subsequent
 active-policy execution proofs for Sisyphus Harness. Paths identifying a local
 user or machine have been replaced with symbolic roots. The model file, HMAC
 authority key, hidden verifier source, and verifier stdout/stderr are not
@@ -25,10 +27,10 @@ The full redacted runtime argv and harness settings are in
 Evolution `qwen30b-gepa-20260718-11` accepted candidate
 `sha256:8073fc78157f74fb15a63fc668b52e96b5540c953ef7cb9221c291c881710027`.
 
-| Split | Baseline mean | Candidate mean | Delta | Baseline success | Candidate success |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Train | 0.686497 | 0.917105 | +0.230609 | 0.50 | 0.75 |
-| Frozen holdout-v3 | 0.718388 | 0.952303 | +0.233914 | 0.50 | 1.00 |
+| Split | n | Baseline mean | Candidate mean | Delta | Baseline success | Candidate success |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| Train | 4 | 0.686497 | 0.917105 | +0.230609 | 0.50 | 0.75 |
+| Frozen holdout-v3 | 2 | 0.718388 | 0.952303 | +0.233914 | 0.50 | 1.00 |
 
 All train and holdout hard gates passed. The candidate passed every holdout
 case. On train, page-size reached 100 percent criterion correctness but did not

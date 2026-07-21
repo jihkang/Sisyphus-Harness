@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 import math
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 import tomllib
 from urllib.parse import urlsplit
 
@@ -32,6 +32,7 @@ class ProviderSettings:
     temperature: float = 0.1
     max_tokens: int = 4096
     api_key_env: str | None = None
+    response_format: str = "json_schema"
 
     def __post_init__(self) -> None:
         if not self.base_url.strip() or not self.model.strip():
@@ -59,6 +60,10 @@ class ProviderSettings:
             raise ValueError("provider temperature must be between 0 and 2")
         if not 1 <= self.max_tokens <= 131_072:
             raise ValueError("provider max_tokens must be between 1 and 131072")
+        if self.response_format not in {"json_schema", "json_object", "none"}:
+            raise ValueError(
+                "provider response_format must be 'json_schema', 'json_object', or 'none'"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +94,39 @@ class AgentLimits:
 
 
 @dataclass(frozen=True, slots=True)
+class ExecutionSettings:
+    trust_mode: str = "untrusted-contained"
+    writable_paths: tuple[str, ...] = ()
+    verifier_image: str = "sisyphus-harness-verifier:local"
+
+    def __post_init__(self) -> None:
+        if self.trust_mode not in {"untrusted-contained", "trusted-in-process"}:
+            raise ValueError(
+                "execution trust_mode must be 'untrusted-contained' or "
+                "'trusted-in-process'"
+            )
+        if type(self.writable_paths) is not tuple:
+            raise ValueError("execution writable_paths must be an immutable tuple")
+        normalized = tuple(
+            _relative_workspace_path(path, "execution.writable_paths")
+            for path in self.writable_paths
+        )
+        if len(set(normalized)) != len(normalized):
+            raise ValueError("execution writable_paths must not contain duplicates")
+        object.__setattr__(self, "writable_paths", normalized)
+        if (
+            not self.verifier_image
+            or len(self.verifier_image) > 512
+            or self.verifier_image.startswith("-")
+            or any(
+                character.isspace() or ord(character) < 32
+                for character in self.verifier_image
+            )
+        ):
+            raise ValueError("execution verifier_image must be a bounded image reference")
+
+
+@dataclass(frozen=True, slots=True)
 class HarnessConfig:
     provider: ProviderSettings
     limits: AgentLimits
@@ -96,6 +134,7 @@ class HarnessConfig:
     strategy_prompt: str
     verification: VerificationConfig
     evolution: EvolutionSettings
+    execution: ExecutionSettings
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,6 +175,7 @@ def load_harness_config(path: Path) -> HarnessConfig:
             "cadence",
             "prompts",
             "evolution",
+            "execution",
             "commands",
             "verify",
         },
@@ -151,6 +191,7 @@ def load_harness_config(path: Path) -> HarnessConfig:
             "temperature",
             "max_tokens",
             "api_key_env",
+            "response_format",
         },
         "provider",
     )
@@ -174,6 +215,9 @@ def load_harness_config(path: Path) -> HarnessConfig:
             maximum=131_072,
         ),
         api_key_env=_optional_string(provider.get("api_key_env"), "provider.api_key_env"),
+        response_format=_provider_response_format(
+            provider.get("response_format", "json_schema")
+        ),
     )
 
     agent = _optional_table(raw, "agent")
@@ -340,6 +384,31 @@ def load_harness_config(path: Path) -> HarnessConfig:
             strict=True,
         ),
     )
+    execution = _optional_table(raw, "execution")
+    _reject_unknown(
+        execution,
+        {"trust_mode", "writable_paths", "verifier_image"},
+        "execution",
+    )
+    execution_settings = ExecutionSettings(
+        trust_mode=_nonempty_string(
+            execution.get("trust_mode", "untrusted-contained"),
+            "execution.trust_mode",
+        ),
+        writable_paths=tuple(
+            _string_list(
+                execution.get("writable_paths", []),
+                "execution.writable_paths",
+            )
+        ),
+        verifier_image=_nonempty_string(
+            execution.get(
+                "verifier_image",
+                "sisyphus-harness-verifier:local",
+            ),
+            "execution.verifier_image",
+        ),
+    )
     return HarnessConfig(
         provider=provider_settings,
         limits=limits,
@@ -347,6 +416,7 @@ def load_harness_config(path: Path) -> HarnessConfig:
         strategy_prompt=strategy_prompt,
         verification=_parse_verification(raw),
         evolution=evolution_settings,
+        execution=execution_settings,
     )
 
 
@@ -462,6 +532,30 @@ def _optional_string(value: object, field: str) -> str | None:
     if value is None:
         return None
     return _nonempty_string(value, field)
+
+
+def _provider_response_format(value: object) -> str:
+    mode = _nonempty_string(value, "provider.response_format")
+    if mode not in {"json_schema", "json_object", "none"}:
+        raise ConfigError(
+            "provider.response_format must be 'json_schema', 'json_object', or 'none'"
+        )
+    return mode
+
+
+def _relative_workspace_path(value: object, field: str) -> str:
+    path = _nonempty_string(value, field)
+    candidate = PurePosixPath(path)
+    if (
+        "\\" in path
+        or "\x00" in path
+        or path == "."
+        or candidate.is_absolute()
+        or candidate.as_posix() != path
+        or any(part in {"", ".", ".."} for part in candidate.parts)
+    ):
+        raise ValueError(f"{field} contains an unsafe relative path: {path}")
+    return path
 
 
 def _positive_number(value: object, field: str) -> float:

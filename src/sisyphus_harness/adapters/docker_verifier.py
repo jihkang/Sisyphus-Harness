@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import hashlib
 import math
 import os
@@ -60,6 +60,27 @@ class DockerVerifierTransport:
             or self.max_output_bytes <= 0
         ):
             raise ValueError("Docker verifier output limit must be positive")
+        if (
+            not self.image
+            or len(self.image) > 512
+            or self.image.startswith("-")
+            or any(character.isspace() or ord(character) < 32 for character in self.image)
+        ):
+            raise ValueError("Docker verifier image reference is unsafe")
+
+    def execute_with_timeout(
+        self,
+        request: BundleVerificationRequest,
+        *,
+        timeout_seconds: float,
+    ) -> VerificationServiceResult:
+        if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+            raise ValueError("Docker verifier timeout override must be positive")
+        bounded = replace(
+            self,
+            timeout_seconds=min(self.timeout_seconds, timeout_seconds),
+        )
+        return bounded.execute(request)
 
     def execute(self, request: BundleVerificationRequest) -> VerificationServiceResult:
         self.artifact_root.mkdir(parents=True, exist_ok=True)
@@ -158,11 +179,11 @@ class DockerVerifierTransport:
             "--tmpfs",
             f"/work:rw,exec,nosuid,nodev,size=512m,uid={uid},gid={gid}",
             "--mount",
-            f"type=bind,src={bundle_view.resolve()},dst=/bundles,readonly",
+            _docker_bind_mount(bundle_view, "/bundles", readonly=True),
             "--mount",
-            f"type=bind,src={staging_root.resolve()},dst=/artifacts",
+            _docker_bind_mount(staging_root, "/artifacts", readonly=False),
             "--mount",
-            f"type=bind,src={request_path.resolve()},dst=/request.json,readonly",
+            _docker_bind_mount(request_path, "/request.json", readonly=True),
             self.image,
             "--request",
             "/request.json",
@@ -469,6 +490,18 @@ class DockerVerifierTransport:
 
 def _is_container_id(value: str) -> bool:
     return 12 <= len(value) <= 64 and all(character in "0123456789abcdef" for character in value)
+
+
+def _docker_bind_mount(source: Path, destination: str, *, readonly: bool) -> str:
+    source_field = f"src={source.resolve()}"
+    if any(character in source_field for character in ("\x00", "\r", "\n")):
+        raise DockerVerifierError("Docker bind source contains a control character")
+    if "," in source_field or '"' in source_field:
+        source_field = f'"{source_field.replace(chr(34), chr(34) * 2)}"'
+    options = ["type=bind", source_field, f"dst={destination}"]
+    if readonly:
+        options.append("readonly")
+    return ",".join(options)
 
 
 def _copy_stable_regular_file(

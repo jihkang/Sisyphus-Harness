@@ -74,6 +74,9 @@ class CliTests(unittest.TestCase):
                 max_protocol_errors = 1
                 max_compactions = 2
 
+                [execution]
+                trust_mode = "trusted-in-process"
+
                 [cadence]
                 compaction_interval_steps = 4
                 context_char_limit = 4000
@@ -309,6 +312,7 @@ class CliTests(unittest.TestCase):
                 str(self.repository),
                 "--config",
                 "failing.toml",
+                "--trusted-in-process",
             ]
         )
         self.assertEqual(code, 1)

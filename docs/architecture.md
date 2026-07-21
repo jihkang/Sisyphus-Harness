@@ -62,15 +62,18 @@ Copy visible fixture workspaces into isolated Git repositories, keep hidden
 verifiers external, score rollouts, run GEPA offline, independently reevaluate
 candidates, and require a signed operator approval before activation.
 
-`cli.py` and `worker.py`
+`cli.py`, `runtime.py`, and `worker.py`
 
-Provide direct commands and leased queue execution. Workers load one immutable
-job payload containing the input workspace bundle and effective config/policy
-snapshot, heartbeat the lease, materialize an isolated per-attempt repository,
-publish an output bundle, and write exactly one terminal queue result. Lease
-ownership fences the database transition; an expired attempt cannot mutate the
-operator's source repository because its workspace is disposable authority
-state.
+Provide direct commands, trust-mode composition, and leased queue execution.
+The default `untrusted-contained` mode requires an operator-owned write
+allowlist and sends immutable candidate bundles through Docker verification;
+host verification requires explicit `trusted-in-process`. Workers load one
+immutable job payload containing the input workspace bundle and effective
+config/policy snapshot, heartbeat the lease, materialize an isolated per-attempt
+repository, publish an output bundle, and write exactly one terminal queue
+result. Lease ownership fences the database transition; an expired attempt
+cannot mutate the operator's source repository because its workspace is
+disposable authority state.
 
 ## Authority Flow
 

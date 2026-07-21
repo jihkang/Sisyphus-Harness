@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from .bundle_verification import BundleVerificationAdapter
 from .docker_verifier import DockerVerifierError, DockerVerifierTransport
 from .in_process import (
     InProcessAgentRunAdapter,
@@ -26,6 +27,7 @@ from .receipt_observations import (
 from .workspace_state import GitWorkspaceStateAdapter, TreeHashWorkspaceStateAdapter
 
 __all__ = [
+    "BundleVerificationAdapter",
     "COMMAND_EXIT_CODE",
     "COMMAND_FACT_TYPES",
     "COMMAND_FAILURE_CATEGORY",

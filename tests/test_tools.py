@@ -626,6 +626,49 @@ class WorkspaceToolsTests(unittest.TestCase):
                 protected_write_paths=(outside,),
             )
 
+    def test_positive_write_allowlist_blocks_oracle_and_new_sibling_files(self) -> None:
+        source = self.repository / "src" / "code.py"
+        oracle = self.repository / "tests" / "test_code.py"
+        source.parent.mkdir()
+        oracle.parent.mkdir()
+        source.write_text("VALUE = 0\n", encoding="utf-8")
+        oracle.write_text("assert VALUE == 1\n", encoding="utf-8")
+        tools = WorkspaceTools(
+            self.repository,
+            max_file_bytes=4096,
+            max_output_chars=2000,
+            allowed_write_paths=(self.repository / "src",),
+        )
+        source_hash = tools.execute("read_file", {"path": "src/code.py"}).output[
+            "sha256"
+        ]
+        oracle_hash = tools.execute(
+            "read_file", {"path": "tests/test_code.py"}
+        ).output["sha256"]
+
+        tools.execute(
+            "write_file",
+            {
+                "path": "src/code.py",
+                "content": "VALUE = 1\n",
+                "expected_sha256": source_hash,
+            },
+        )
+        for path, expected in (
+            ("tests/test_code.py", oracle_hash),
+            ("README.generated.md", None),
+        ):
+            with self.subTest(path=path):
+                with self.assertRaisesRegex(ToolError, "outside.*allowlist"):
+                    tools.execute(
+                        "write_file",
+                        {
+                            "path": path,
+                            "content": "assert True\n",
+                            "expected_sha256": expected,
+                        },
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()

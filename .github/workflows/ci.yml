@@ -20,6 +20,12 @@ jobs:
       - run: uvx --from ruff==0.15.22 ruff check .
       - run: uvx --from bandit==1.9.4 bandit -r src -ll
       - run: docker build -f docker/verifier.Dockerfile -t sisyphus-harness-verifier:ci .
+      - name: Probe real verifier container boundary
+        env:
+          SISYPHUS_DOCKER_INTEGRATION: "1"
+          SISYPHUS_VERIFIER_IMAGE: sisyphus-harness-verifier:ci
+          PYTHONPATH: src
+        run: python -m unittest tests.test_docker_verifier_integration -v
       - name: Validate verifier Compose boundary
         env:
           SISYPHUS_BUNDLE_STORE: /tmp/sisyphus-bundles
