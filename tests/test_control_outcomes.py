@@ -234,6 +234,12 @@ class ControlOutcomeTests(unittest.TestCase):
         self.assertEqual(outcome.producer_authority, _AUTHORITY)
         self.assertEqual(outcome.contract, request.contract)
         self.assertEqual(outcome.verification_profile, request.profile)
+        self.assertEqual(outcome.schema_version, "sisyphus_harness.task_outcome.v2")
+        self.assertIsNotNone(outcome.verification_profile.asset_bundle)
+        self.assertEqual(
+            outcome.verification_execution_identity_digest,
+            outcome.verification_execution_identity.identity_digest,
+        )
         self.assertEqual(outcome.attempt_digest, attempt.attempt_digest)
         self.assertEqual(outcome.output_bundle_id, attempt.output_bundle.bundle_id)
         self.assertEqual(
@@ -344,6 +350,65 @@ class ControlOutcomeTests(unittest.TestCase):
             self.authority,
         )
 
+        with self.assertRaisesRegex(
+            ControlTaskOutcomeError,
+            "not bound to the authoritative attempt",
+        ):
+            service.adjudicate(self._request(attempt.job_id))
+        self.assertIsNone(self.authority.get_task_outcome(attempt.job_id))
+
+    def test_control_rejects_an_adjudicator_without_v2_execution_authority(self) -> None:
+        attempt = self._finished_attempt(agent_success=True)
+        canonical = ControlEvidenceContractService(
+            ResultVerifier(command_passed=True)
+        )
+
+        class LegacyShapedAdjudicator:
+            def adjudicate(self, request):
+                result = canonical.adjudicate(request)
+                object.__setattr__(
+                    result.verification_request,
+                    "schema_version",
+                    "sisyphus_harness.bundle_verification_request.v1",
+                )
+                object.__setattr__(
+                    result.verification_request,
+                    "execution_identity",
+                    None,
+                )
+                return result
+
+        service = ControlTaskOutcomeService(
+            LegacyShapedAdjudicator(),
+            self.authority,
+        )
+        with self.assertRaisesRegex(
+            ControlTaskOutcomeError,
+            "asset- and identity-bound v2",
+        ):
+            service.adjudicate(self._request(attempt.job_id))
+        self.assertIsNone(self.authority.get_task_outcome(attempt.job_id))
+
+    def test_control_rejects_an_adjudicator_with_rebound_asset_receipt(self) -> None:
+        attempt = self._finished_attempt(agent_success=True)
+        canonical = ControlEvidenceContractService(
+            ResultVerifier(command_passed=True)
+        )
+
+        class ReboundReceiptAdjudicator:
+            def adjudicate(self, request):
+                result = canonical.adjudicate(request)
+                object.__setattr__(
+                    result.verification_result.receipt,
+                    "verifier_asset_bundle_id",
+                    "verifier-assets:sha256:" + "f" * 64,
+                )
+                return result
+
+        service = ControlTaskOutcomeService(
+            ReboundReceiptAdjudicator(),
+            self.authority,
+        )
         with self.assertRaisesRegex(
             ControlTaskOutcomeError,
             "not bound to the authoritative attempt",

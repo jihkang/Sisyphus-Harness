@@ -8,6 +8,7 @@ import unittest
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PACKAGE_ROOT = REPO_ROOT / "src" / "sisyphus_harness"
 ARCHITECTURE_DOC = REPO_ROOT / "docs" / "architecture-and-data-pipeline.md"
+ARCHITECTURE_INDEX = REPO_ROOT / "docs" / "architecture" / "README.md"
 REVIEW_DOC = REPO_ROOT / "docs" / "architecture-conformance-review-2026-07-18.md"
 DOCS_INDEX = REPO_ROOT / "docs" / "README.md"
 STATUS_INDEX = REPO_ROOT / "docs" / "status" / "README.md"
@@ -64,11 +65,15 @@ class ArchitectureDocumentationTests(unittest.TestCase):
     def test_documentation_index_links_current_review_structure(self) -> None:
         content = DOCS_INDEX.read_text(encoding="utf-8")
         for target in (
+            "architecture/README.md",
             "architecture-and-data-pipeline.md",
             "adr/0005-default-deny-execution.md",
+            "adr/0007-verifier-asset-and-image-binding.md",
+            "adr/0008-host-owned-verification-evidence.md",
             "reviews/2026-07-21/README.md",
             "reviews/2026-07-21/verification-gates.md",
             "reviews/2026-07-21/stage-0-validation.md",
+            "reviews/2026-07-21/stage-c-verifier-integrity.md",
             "status/README.md",
             "status/conformance-model.md",
             "status/implementation-debt.md",
@@ -76,6 +81,40 @@ class ArchitectureDocumentationTests(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertIn(target, content)
                 self.assertTrue((DOCS_INDEX.parent / target).is_file())
+
+    def test_structured_architecture_map_keeps_service_authority_explicit(self) -> None:
+        content = ARCHITECTURE_INDEX.read_text(encoding="utf-8")
+        component_documents = {
+            "Agent": "components/agent.md",
+            "Verifier": "components/verifier.md",
+            "Evolve": "components/evolve.md",
+            "Control": "components/control.md",
+        }
+        for boundary, target in component_documents.items():
+            with self.subTest(boundary=boundary):
+                self.assertIn(target, content)
+                component = (ARCHITECTURE_INDEX.parent / target).read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn("## Responsibility", component)
+                self.assertIn("## Owned Authority", component)
+                self.assertIn("## Forbidden Authority", component)
+                self.assertIn("## Current Implementation", component)
+                self.assertIn("## Target Boundary", component)
+                self.assertIn("## Open Debt And Evidence", component)
+
+        for target in ("trust-and-artifacts.md", "data-pipelines.md"):
+            with self.subTest(target=target):
+                self.assertIn(target, content)
+                self.assertTrue((ARCHITECTURE_INDEX.parent / target).is_file())
+
+        verifier = (
+            ARCHITECTURE_INDEX.parent / "components" / "verifier.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn("Read-only mounting protects verifier asset integrity", verifier)
+        self.assertIn("separate evaluator process or", verifier)
+        self.assertIn("VerificationExecutorPort", verifier)
+        self.assertIn("host constructs", verifier)
 
     def test_living_status_documents_define_canonical_conformance_and_debt(self) -> None:
         status_index = STATUS_INDEX.read_text(encoding="utf-8")
@@ -90,8 +129,11 @@ class ArchitectureDocumentationTests(unittest.TestCase):
         for debt_id in (
             "SH-P0-002",
             "SH-VERIFY-001",
+            "SH-VERIFY-002",
+            "SH-ORACLE-001",
             "SH-GRAPH-001",
             "SH-ARCH-001",
+            "SH-TEST-001",
             "SH-EVOLVE-001",
             "SH-BENCH-001",
             "SH-GOV-001",

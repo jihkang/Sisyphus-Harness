@@ -74,7 +74,9 @@ from .verification_service import (
     BundleVerificationRequest,
     VerificationProfile,
     VerificationServiceResult,
+    VerifierExecutionIdentity,
 )
+from .verifier_assets import VerifierAssetBundleRef
 from .workspace import WorkspaceBundleRef, WorkspaceSnapshot
 
 __all__ = [
@@ -135,6 +137,8 @@ __all__ = [
     "VerificationRequest",
     "VerificationProfile",
     "VerificationServiceResult",
+    "VerifierAssetBundleRef",
+    "VerifierExecutionIdentity",
     "WireModel",
     "WorkspaceBundleRef",
     "WorkspaceSnapshot",

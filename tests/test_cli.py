@@ -19,6 +19,7 @@ from sisyphus_harness.authority import (
 from sisyphus_harness.cli import main
 from sisyphus_harness.config import CadencePolicy
 from sisyphus_harness.contracts.control import TaskOutcomeDecision
+from sisyphus_harness.contracts.verification_service import VerificationProfile
 from sisyphus_harness.evolution import CandidatePolicy
 from sisyphus_harness.provider import ChatResponse
 from sisyphus_harness.queue import JobQueue
@@ -212,6 +213,53 @@ class CliTests(unittest.TestCase):
         )
         self.assertEqual(code, 0)
         self.assertEqual(empty, {"job": None})
+
+    def test_verifier_asset_and_profile_commands_publish_bound_v2_contracts(self) -> None:
+        config = self.write_full_config()
+        assets = self.repository / "operator-verifier"
+        assets.mkdir()
+        (assets / "hidden_check.py").write_text(
+            "from module import VALUE\nassert VALUE == 1\n",
+            encoding="utf-8",
+        )
+
+        code, reference, error = invoke(
+            [
+                "verifier-assets-create",
+                "--repo",
+                str(self.repository),
+                "--source",
+                "operator-verifier",
+            ]
+        )
+
+        self.assertEqual(code, 0)
+        self.assertIsNone(error)
+        self.assertTrue(reference["bundle_id"].startswith("verifier-assets:sha256:"))
+
+        code, profile_payload, error = invoke(
+            [
+                "verification-profile-create",
+                "--repo",
+                str(self.repository),
+                "--config",
+                config.name,
+                "--profile-id",
+                "control-final",
+                "--asset-bundle-id",
+                reference["bundle_id"],
+            ]
+        )
+
+        self.assertEqual(code, 0)
+        self.assertIsNone(error)
+        profile = VerificationProfile.from_dict(profile_payload)
+        self.assertEqual(
+            profile.schema_version,
+            "sisyphus_harness.verification_profile.v2",
+        )
+        self.assertEqual(profile.asset_bundle.bundle_id, reference["bundle_id"])
+        self.assertEqual(profile.commands[0].name, "behavior")
 
     def test_queue_failure_and_invalid_payload_return_structured_results(self) -> None:
         _, queued, _ = invoke(

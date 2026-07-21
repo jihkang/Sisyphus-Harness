@@ -12,6 +12,7 @@ from ..contracts.verification import VerificationReceipt
 from ..contracts.verification_service import (
     BundleVerificationRequest,
     VerificationServiceResult,
+    VerifierExecutionIdentity,
 )
 from ..evidence_contract import evaluate_evidence_contract
 from ..ports.evidence_contracts import (
@@ -58,12 +59,27 @@ class ControlEvidenceContractService:
             raise VerificationBindingError(
                 "observation adapter does not match the EvidenceContract"
             )
+        if (
+            request.profile.schema_version
+            != "sisyphus_harness.verification_profile.v2"
+            or request.profile.asset_bundle is None
+        ):
+            raise VerificationBindingError(
+                "Control final verification requires a v2 verifier-asset profile"
+            )
+        execution_identity = self.verifier.execution_identity()
+        if type(execution_identity) is not VerifierExecutionIdentity:
+            raise VerificationBindingError(
+                "verifier returned an invalid execution identity"
+            )
         verification_request = BundleVerificationRequest(
             run_id=request.run_id,
             # The only candidate input is the immutable bundle published by the
             # completed coding attempt.  Agent booleans are not consulted.
             workspace_bundle=request.job_result.output_bundle,
             profile=request.profile,
+            execution_identity=execution_identity,
+            schema_version="sisyphus_harness.bundle_verification_request.v2",
         )
         verification_result = self.verifier.execute(verification_request)
         # Control validates the boundary even when a custom normalization adapter
@@ -71,6 +87,7 @@ class ControlEvidenceContractService:
         validate_final_verification_bindings(
             verification_request,
             verification_result,
+            require_verifier_assets=True,
         )
         authoritative_receipt = self.verifier.read_receipt(
             verification_result.receipt_artifact
@@ -92,11 +109,13 @@ class ControlEvidenceContractService:
             profile_digest=verification_result.profile_digest,
             receipt=authoritative_receipt,
             receipt_artifact=verification_result.receipt_artifact,
+            execution_identity=verification_result.execution_identity,
             schema_version=verification_result.schema_version,
         )
         validate_final_verification_bindings(
             verification_request,
             verification_result,
+            require_verifier_assets=True,
         )
         observations = tuple(
             item

@@ -38,25 +38,26 @@ externally when that code is untrusted.
 
 `DockerVerifierTransport` provides that external boundary with no network, a
 read-only root filesystem, dropped capabilities, bounded memory/CPU/processes,
-and a read-only per-run bundle view containing only the request's digest-bound
-archive and reference. The host copies that pair with no-symlink, stable-stat,
-size, digest, and strict-reference validation, so the container cannot enumerate
-other workspace bundles. Each run receives a new empty writable staging directory
-instead of the authoritative evidence root. Docker stdout and stderr are captured
-under one byte limit; overflow or timeout kills the client process group and
-force-removes the recorded container ID. The host validates the receipt bytes,
-digest, request, bundle, and profile bindings before atomically publishing the run
-under the authoritative artifact root. The executable `/work` tmpfs is separate
-from the non-executable `/tmp` tmpfs so repository-owned test programs can run
-without making general temporary storage executable.
+and an immutable admitted image ID. The host validates and materializes only the
+requested workspace bundle and optional content-addressed verifier asset tree.
+Each `CommandSpec` is PID 1 of a separate container that receives `/workspace`
+read-write and `/verifier-assets` read-only when requested. It receives no
+request file, bundle CAS, writable staging directory, or authoritative evidence
+root. Docker stdout and stderr are captured under one byte limit; overflow or
+timeout kills the client process group and force-removes the recorded container
+ID. The host constructs command results and the v3 receipt from observed exit,
+timeout, output, executable, image, asset, and workspace facts, validates every
+binding, and atomically publishes the run.
 
 This is host containment for a single supervised run, not a hidden-oracle or
-multi-tenant confidentiality boundary. The verifier service and commands still
-share one container UID and mount namespace, so a command may inspect its own
-request/profile and writable staging paths. Secret verifier assets require a
-separate command sandbox or verifier-only mount namespace.
+multi-tenant confidentiality boundary. A command can read verifier assets that
+its profile mounts, even though it cannot modify them or reach evidence staging.
+Secret verifier assets require a separate evaluator process or VM with a narrow
+result protocol.
 
-The Compose entry point does not prepare the per-run view for you. Set
+The Compose entry point is a compatibility executor and does not use the
+host-owned per-command evidence topology. It also does not prepare the per-run
+view for you. Set
 `SISYPHUS_BUNDLE_STORE` to a new directory containing only the exact validated
 request `.tar`/`.json` pair, and set `SISYPHUS_VERIFICATION_STAGING` to a new empty
 directory for each invocation. Do not point either mount at the full bundle CAS,
@@ -173,6 +174,17 @@ final profile through the Docker verifier, and is the only service that can
 publish `passed`, `failed`, or `indeterminate`:
 
 ```bash
+sisyphus-harness verifier-assets-create \
+  --repo . \
+  --source operator-verifier
+
+sisyphus-harness verification-profile-create \
+  --repo . \
+  --config sisyphus-harness.toml \
+  --profile-id control-final \
+  --asset-bundle-id verifier-assets:sha256:... \
+  > control-profile.json
+
 sisyphus-harness task-adjudicate \
   --repo . \
   --job-id job-id-from-task-submit \

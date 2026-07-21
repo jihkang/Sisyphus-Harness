@@ -73,6 +73,8 @@ def command_fact_selector(
 def validate_final_verification_bindings(
     request: BundleVerificationRequest,
     result: VerificationServiceResult,
+    *,
+    require_verifier_assets: bool = False,
 ) -> None:
     """Fail closed unless request, bundle, profile, run, and receipt agree."""
 
@@ -97,10 +99,41 @@ def validate_final_verification_bindings(
             "verification result is bound to a different profile"
         )
 
-    receipt = result.receipt
-    if receipt.schema_version != "sisyphus_harness.verification.v2":
+    service_v2 = (
+        request.schema_version
+        == "sisyphus_harness.bundle_verification_request.v2"
+    )
+    if service_v2:
+        if (
+            result.schema_version
+            != "sisyphus_harness.verification_service_result.v2"
+            or request.execution_identity is None
+            or result.execution_identity != request.execution_identity
+        ):
+            raise VerificationBindingError(
+                "verification result is bound to a different execution identity"
+            )
+        if require_verifier_assets and request.profile.asset_bundle is None:
+            raise VerificationBindingError(
+                "Control final verification requires verifier-owned assets"
+            )
+    elif (
+        result.schema_version != "sisyphus_harness.verification_service_result.v1"
+        or result.execution_identity is not None
+    ):
         raise VerificationBindingError(
-            "final verification requires a digest-bound v2 receipt"
+            "legacy verification result has an unexpected execution identity"
+        )
+
+    receipt = result.receipt
+    expected_receipt_schema = (
+        "sisyphus_harness.verification.v3"
+        if service_v2
+        else "sisyphus_harness.verification.v2"
+    )
+    if receipt.schema_version != expected_receipt_schema:
+        raise VerificationBindingError(
+            "final verification requires the matching digest-bound receipt schema"
         )
     if receipt.run_id != request.run_id:
         raise VerificationBindingError(
@@ -110,6 +143,20 @@ def validate_final_verification_bindings(
         raise VerificationBindingError(
             "verification receipt is bound to a different request"
         )
+    if service_v2:
+        assert request.execution_identity is not None
+        asset_bundle = request.profile.asset_bundle
+        if (
+            receipt.workspace_bundle_id != request.workspace_bundle.bundle_id
+            or receipt.profile_digest != request.profile.profile_digest
+            or receipt.execution_identity_digest
+            != request.execution_identity.identity_digest
+            or receipt.verifier_asset_bundle_id
+            != (asset_bundle.bundle_id if asset_bundle is not None else None)
+        ):
+            raise VerificationBindingError(
+                "verification receipt service bindings are inconsistent"
+            )
     if receipt.worktree_commit_sha != request.workspace_bundle.source_commit_sha:
         raise VerificationBindingError(
             "verification receipt is bound to a different source commit"

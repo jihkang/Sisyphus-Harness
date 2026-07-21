@@ -18,15 +18,25 @@ from unittest.mock import Mock, patch
 from sisyphus_harness.adapters.docker_verifier import (
     DockerVerifierError,
     DockerVerifierTransport,
+    _CommandCapture,
 )
 from sisyphus_harness.contracts.artifacts import ArtifactRef
-from sisyphus_harness.contracts.verification import CommandSpec, VerificationReceipt
+from sisyphus_harness.contracts.verification import (
+    CommandResult,
+    CommandSpec,
+    VerificationReceipt,
+)
 from sisyphus_harness.contracts.verification_service import (
     BundleVerificationRequest,
     VerificationProfile,
     VerificationServiceResult,
+    VerifierExecutionIdentity,
 )
+from sisyphus_harness.contracts.verifier_assets import VerifierAssetBundleRef
 from sisyphus_harness.contracts.workspace import WorkspaceBundleRef
+from sisyphus_harness.infra.verifier_assets import (
+    FilesystemVerifierAssetBundleStore,
+)
 from sisyphus_harness.infra.verification_evidence import (
     VERIFICATION_RECEIPT_MEDIA_TYPE,
     FilesystemVerificationEvidenceStore,
@@ -61,6 +71,15 @@ def _bundle(character: str = "1") -> WorkspaceBundleRef:
     )
 
 
+def _identity() -> VerifierExecutionIdentity:
+    image_id = _digest("d")
+    return VerifierExecutionIdentity(
+        runtime="docker",
+        image_reference=image_id,
+        image_id=image_id,
+    )
+
+
 def _profile(profile_id: str = "unit") -> VerificationProfile:
     return VerificationProfile(
         profile_id=profile_id,
@@ -72,6 +91,8 @@ def _profile(profile_id: str = "unit") -> VerificationProfile:
                 criteria=("command completes",),
             ),
         ),
+        asset_bundle=None,
+        schema_version="sisyphus_harness.verification_profile.v2",
     )
 
 
@@ -85,6 +106,8 @@ def _request(
         run_id=run_id,
         workspace_bundle=bundle or _bundle(),
         profile=profile or _profile(),
+        execution_identity=_identity(),
+        schema_version="sisyphus_harness.bundle_verification_request.v2",
     )
 
 
@@ -94,7 +117,26 @@ def _receipt(
     passed: bool = True,
     run_id: str | None = None,
 ) -> VerificationReceipt:
-    unchanged = passed
+    command = request.profile.commands[0]
+    unchanged = True
+    command_result = CommandResult(
+        name=command.name,
+        argv=command.argv,
+        criteria=command.criteria,
+        passed=passed,
+        timed_out=False,
+        exit_code=0 if passed else 1,
+        duration_ms=1,
+        executable_path=sys.executable,
+        executable_sha256=_digest("e"),
+        stdout_path=f"00-{command.name}/stdout.txt",
+        stderr_path=f"00-{command.name}/stderr.txt",
+        workspace_state_before=request.workspace_bundle.tree_hash,
+        workspace_state_after=request.workspace_bundle.tree_hash,
+        workspace_unchanged=True,
+        failure_category=None if passed else "assertion_failure",
+        error=None,
+    )
     return VerificationReceipt(
         run_id=run_id or request.run_id,
         workspace="/workspace",
@@ -102,13 +144,22 @@ def _receipt(
         started_at="2026-07-20T00:00:00Z",
         finished_at="2026-07-20T00:00:01Z",
         passed=passed,
-        commands=(),
+        commands=(command_result,),
         workspace_state_before=request.workspace_bundle.tree_hash,
         workspace_state_after=(
             request.workspace_bundle.tree_hash if unchanged else _digest("9")
         ),
         workspace_unchanged=unchanged,
         request_digest=request.request_digest,
+        schema_version="sisyphus_harness.verification.v3",
+        workspace_bundle_id=request.workspace_bundle.bundle_id,
+        profile_digest=request.profile.profile_digest,
+        execution_identity_digest=request.execution_identity.identity_digest,
+        verifier_asset_bundle_id=(
+            request.profile.asset_bundle.bundle_id
+            if request.profile.asset_bundle is not None
+            else None
+        ),
     )
 
 
@@ -123,12 +174,10 @@ def _result(
     receipt_content = (
         json.dumps(receipt.to_dict(), indent=2, sort_keys=True) + "\n"
     ).encode()
-    return VerificationServiceResult(
+    result = VerificationServiceResult(
         request_digest=request.request_digest,
-        workspace_bundle_id=(
-            workspace_bundle_id or request.workspace_bundle.bundle_id
-        ),
-        profile_digest=profile_digest or request.profile.profile_digest,
+        workspace_bundle_id=request.workspace_bundle.bundle_id,
+        profile_digest=request.profile.profile_digest,
         receipt=receipt,
         receipt_artifact=ArtifactRef(
             artifact_id=f"{request.run_id}/receipt.json",
@@ -136,7 +185,14 @@ def _result(
             size_bytes=len(receipt_content),
             media_type=VERIFICATION_RECEIPT_MEDIA_TYPE,
         ),
+        execution_identity=request.execution_identity,
+        schema_version="sisyphus_harness.verification_service_result.v2",
     )
+    if workspace_bundle_id is not None:
+        object.__setattr__(result, "workspace_bundle_id", workspace_bundle_id)
+    if profile_digest is not None:
+        object.__setattr__(result, "profile_digest", profile_digest)
+    return result
 
 
 def _completed(
@@ -157,71 +213,368 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
         self.temporary_directory = tempfile.TemporaryDirectory()
         self.addCleanup(self.temporary_directory.cleanup)
         root = Path(self.temporary_directory.name)
+        self.root = root
         repository = create_git_repo(root / "repository")
         bundle_store = root / "bundles"
         bundle = FilesystemWorkspaceBundleStore(bundle_store).create(repository)
         self.transport = DockerVerifierTransport(
             bundle_store=bundle_store,
             artifact_root=root / "artifacts",
+            image=_digest("d"),
             timeout_seconds=0.1,
         )
         self.request = _request(bundle=bundle)
         self.observed_bundle_names: tuple[str, ...] = ()
         self.observed_bundle_source: Path | None = None
+        self.observed_asset_names: tuple[str, ...] = ()
+        self.observed_command: tuple[str, ...] = ()
 
-    def execute_with(self, completed: SimpleNamespace) -> VerificationServiceResult:
-        def run(
+    def execute_with(
+        self,
+        completed: SimpleNamespace,
+        *,
+        transport: DockerVerifierTransport | None = None,
+        request: BundleVerificationRequest | None = None,
+    ) -> VerificationServiceResult:
+        active_transport = transport or self.transport
+        active_request = request or self.request
+
+        def capture(
             _: DockerVerifierTransport,
-            command: list[str],
-        ) -> SimpleNamespace:
-            if completed.returncode in {0, 1}:
-                bundle_mount = next(
-                    item
-                    for item in command
-                    if item.endswith(",dst=/bundles,readonly")
+            specification: CommandSpec,
+            *,
+            workspace: Path,
+            asset_view: Path | None,
+            cidfile: Path,
+            execution_identity: VerifierExecutionIdentity,
+            timeout_seconds: float,
+        ) -> _CommandCapture:
+            del timeout_seconds
+            self.observed_bundle_source = workspace
+            self.observed_bundle_names = tuple(
+                sorted(
+                    path.relative_to(workspace).as_posix()
+                    for path in workspace.rglob("*")
+                    if path.is_file()
                 )
-                bundle_source = Path(
-                    bundle_mount.split(",src=", 1)[1].split(",dst=", 1)[0]
-                )
-                self.observed_bundle_source = bundle_source
-                self.observed_bundle_names = tuple(
-                    sorted(path.name for path in bundle_source.iterdir())
-                )
-                try:
-                    raw = json.loads(
-                        [
-                            line
-                            for line in completed.stdout.splitlines()
-                            if line.strip()
-                        ][-1]
+            )
+            if asset_view is not None:
+                self.observed_asset_names = tuple(
+                    sorted(
+                        path.relative_to(asset_view).as_posix()
+                        for path in asset_view.rglob("*")
+                        if path.is_file()
                     )
-                    result = VerificationServiceResult.from_dict(raw)
-                except (IndexError, ValueError):
-                    return completed
-                mount = next(
-                    item
-                    for item in command
-                    if item.endswith(",dst=/artifacts")
                 )
-                staging_root = Path(mount.split(",src=", 1)[1].split(",dst=", 1)[0])
-                receipt_path = staging_root / result.receipt_artifact.artifact_id
-                receipt_path.parent.mkdir(parents=True)
-                receipt_path.write_text(
-                    json.dumps(result.receipt.to_dict(), indent=2, sort_keys=True)
-                    + "\n",
-                    encoding="utf-8",
+            self.observed_command = tuple(
+                active_transport.command(
+                    specification,
+                    workspace=workspace,
+                    asset_view=asset_view,
+                    cidfile=cidfile,
+                    execution_identity=execution_identity,
                 )
-            return completed
+            )
+            if completed.returncode == 125:
+                raise DockerVerifierError(
+                    completed.stderr.strip()[-2000:]
+                    or "Docker could not start the verifier command container"
+                )
+            launch_error = None
+            returncode = completed.returncode
+            if returncode in {126, 127}:
+                launch_error = completed.stderr.strip() or "launch failed"
+                returncode = None
+            return _CommandCapture(
+                returncode=returncode,
+                stdout=completed.stdout,
+                stderr=completed.stderr,
+                launch_error=launch_error,
+                duration_ms=1,
+            )
+
+        with patch.object(
+            DockerVerifierTransport,
+            "_probe_executable",
+            autospec=True,
+            return_value=(sys.executable, _digest("e"), None),
+        ), patch.object(
+            DockerVerifierTransport,
+            "_capture_command",
+            autospec=True,
+            side_effect=capture,
+        ):
+            return active_transport.execute(active_request)
+
+    def asset_request(
+        self,
+    ) -> tuple[
+        DockerVerifierTransport,
+        BundleVerificationRequest,
+        VerifierAssetBundleRef,
+    ]:
+        source = self.root / "asset-source"
+        source.mkdir()
+        (source / "check.py").write_text("print('checked')\n", encoding="utf-8")
+        (source / "fixture.txt").write_text("operator fixture\n", encoding="utf-8")
+        store = FilesystemVerifierAssetBundleStore(self.root / "asset-store")
+        reference = store.create(source)
+        profile = VerificationProfile(
+            profile_id="asset-profile",
+            commands=self.request.profile.commands,
+            asset_bundle=reference,
+            schema_version="sisyphus_harness.verification_profile.v2",
+        )
+        request = _request(
+            run_id="asset-run",
+            bundle=self.request.workspace_bundle,
+            profile=profile,
+        )
+        return replace(self.transport, asset_store=store.root), request, reference
+
+    def test_image_tag_resolves_once_to_an_immutable_identity(self) -> None:
+        transport = replace(self.transport, image="verifier:test")
+        with patch(
+            "sisyphus_harness.adapters.docker_verifier.subprocess.run",
+            return_value=_completed(stdout=_digest("f") + "\n"),
+        ) as inspect:
+            identity = transport.execution_identity()
+
+        self.assertEqual(identity.image_reference, "verifier:test")
+        self.assertEqual(identity.image_id, _digest("f"))
+        self.assertEqual(
+            inspect.call_args.args[0],
+            (
+                "docker",
+                "image",
+                "inspect",
+                "--format",
+                "{{.Id}}",
+                "verifier:test",
+            ),
+        )
+
+        request = replace(self.request, execution_identity=identity)
+        with patch.object(
+            DockerVerifierTransport,
+            "execution_identity",
+            autospec=True,
+            return_value=identity,
+        ):
+            self.execute_with(
+                _completed(stdout=json.dumps(_result(request).to_dict())),
+                transport=transport,
+                request=request,
+            )
+        self.assertIn(identity.image_id, self.observed_command)
+        self.assertNotIn(identity.image_reference, self.observed_command)
+
+    def test_image_identity_resolution_failures_are_closed(self) -> None:
+        transport = replace(self.transport, image="verifier:test")
+        failures = (
+            OSError("docker unavailable"),
+            subprocess.TimeoutExpired(("docker", "image", "inspect"), 30),
+        )
+        for failure in failures:
+            with self.subTest(failure=type(failure).__name__), patch(
+                "sisyphus_harness.adapters.docker_verifier.subprocess.run",
+                side_effect=failure,
+            ):
+                with self.assertRaisesRegex(
+                    DockerVerifierError,
+                    "identity could not be resolved",
+                ):
+                    transport.execution_identity()
+
+        invalid_results = (
+            _completed(stdout=_digest("f"), returncode=1),
+            _completed(stdout="not-a-digest\n"),
+            _completed(stdout=_digest("f") + "\n" + _digest("e") + "\n"),
+        )
+        for completed in invalid_results:
+            with self.subTest(result=completed), patch(
+                "sisyphus_harness.adapters.docker_verifier.subprocess.run",
+                return_value=completed,
+            ):
+                with self.assertRaisesRegex(
+                    DockerVerifierError,
+                    "identity could not be resolved",
+                ):
+                    transport.execution_identity()
+
+    def test_legacy_request_is_rejected_before_identity_or_container_use(self) -> None:
+        legacy_profile = VerificationProfile(
+            profile_id="legacy",
+            commands=self.request.profile.commands,
+        )
+        legacy = BundleVerificationRequest(
+            run_id="legacy-run",
+            workspace_bundle=self.request.workspace_bundle,
+            profile=legacy_profile,
+        )
+        with patch.object(
+            DockerVerifierTransport,
+            "execution_identity",
+            autospec=True,
+        ) as identity, patch.object(
+            DockerVerifierTransport,
+            "_run_container",
+            autospec=True,
+        ) as run:
+            with self.assertRaisesRegex(DockerVerifierError, "v2 request"):
+                self.transport.execute(legacy)
+            identity.assert_not_called()
+            run.assert_not_called()
+
+    def test_non_directory_bundle_stores_fail_before_container_start(self) -> None:
+        outside = self.root / "outside-bundles"
+        outside.mkdir()
+        candidates = (
+            self.root / "bundle-file",
+            self.root / "bundle-link",
+            self.root / "missing-bundles",
+        )
+        candidates[0].write_text("not a directory", encoding="utf-8")
+        candidates[1].symlink_to(outside, target_is_directory=True)
+
+        for bundle_store in candidates:
+            with self.subTest(bundle_store=bundle_store), patch.object(
+                DockerVerifierTransport,
+                "_run_container",
+                autospec=True,
+            ) as run:
+                with self.assertRaisesRegex(
+                    DockerVerifierError,
+                    "not a regular directory",
+                ):
+                    replace(self.transport, bundle_store=bundle_store).execute(
+                        self.request
+                    )
+                run.assert_not_called()
+
+    def test_bundle_store_open_identity_and_reference_json_fail_closed(self) -> None:
+        with patch(
+            "sisyphus_harness.adapters.docker_verifier._same_stable_file",
+            return_value=False,
+        ), patch.object(
+            DockerVerifierTransport,
+            "_run_container",
+            autospec=True,
+        ) as run:
+            with self.assertRaisesRegex(DockerVerifierError, "changed while being opened"):
+                self.transport.execute(self.request)
+            run.assert_not_called()
+
+        digest = self.request.workspace_bundle.archive_sha256.removeprefix("sha256:")
+        reference_path = self.transport.bundle_store / f"{digest}.json"
+        reference_path.write_bytes(b"not-json")
+        with patch.object(
+            DockerVerifierTransport,
+            "_run_container",
+            autospec=True,
+        ) as run:
+            with self.assertRaisesRegex(
+                DockerVerifierError,
+                "reference failed host validation",
+            ):
+                self.transport.execute(self.request)
+            run.assert_not_called()
+
+    def test_image_tag_drift_fails_before_container_start(self) -> None:
+        admitted = VerifierExecutionIdentity(
+            runtime="docker",
+            image_reference="verifier:test",
+            image_id=_digest("d"),
+        )
+        changed = replace(admitted, image_id=_digest("f"))
+        transport = replace(self.transport, image="verifier:test")
+        request = replace(self.request, execution_identity=admitted)
+
+        with patch.object(
+            DockerVerifierTransport,
+            "execution_identity",
+            autospec=True,
+            return_value=changed,
+        ), patch.object(
+            DockerVerifierTransport,
+            "_run_container",
+            autospec=True,
+        ) as run:
+            with self.assertRaisesRegex(DockerVerifierError, "identity changed"):
+                transport.execute(request)
+            run.assert_not_called()
+
+    def test_asset_mount_is_an_exact_read_only_view_and_image_id_is_executed(
+        self,
+    ) -> None:
+        transport, request, _ = self.asset_request()
+        expected = _result(request)
+
+        self.execute_with(
+            _completed(stdout=json.dumps(expected.to_dict())),
+            transport=transport,
+            request=request,
+        )
+
+        self.assertEqual(self.observed_asset_names, ("check.py", "fixture.txt"))
+        rendered = " ".join(self.observed_command)
+        self.assertIn("dst=/verifier-assets,readonly", rendered)
+        self.assertNotIn("dst=/artifacts", rendered)
+        self.assertNotIn("dst=/request.json", rendered)
+        self.assertNotIn("dst=/bundles", rendered)
+        self.assertIn(request.execution_identity.image_id, self.observed_command)
+
+    def test_missing_asset_store_and_reference_substitution_fail_before_run(
+        self,
+    ) -> None:
+        transport, request, reference = self.asset_request()
+        cases = (
+            (
+                replace(transport, asset_store=None),
+                request,
+                "requires an asset bundle store",
+            ),
+            (
+                transport,
+                replace(
+                    request,
+                    profile=replace(
+                        request.profile,
+                        asset_bundle=replace(reference, tree_hash=_digest("9")),
+                    ),
+                ),
+                "isolated-view validation",
+            ),
+        )
+        for candidate_transport, candidate_request, expected in cases:
+            with self.subTest(expected=expected), patch.object(
+                DockerVerifierTransport,
+                "_run_container",
+                autospec=True,
+            ) as run:
+                with self.assertRaisesRegex(DockerVerifierError, expected):
+                    candidate_transport.execute(candidate_request)
+                run.assert_not_called()
+
+    def test_symlinked_asset_object_fails_before_container_start(self) -> None:
+        transport, request, reference = self.asset_request()
+        digest = reference.bundle_id.rsplit(":", 1)[-1]
+        stored = transport.asset_store / digest / "files" / "check.py"
+        outside = self.root / "outside.py"
+        outside.write_text("print('substituted')\n", encoding="utf-8")
+        stored.unlink()
+        stored.symlink_to(outside)
 
         with patch.object(
             DockerVerifierTransport,
             "_run_container",
             autospec=True,
-            side_effect=run,
-        ):
-            return self.transport.execute(self.request)
+        ) as run:
+            with self.assertRaisesRegex(DockerVerifierError, "isolated-view validation"):
+                transport.execute(request)
+            run.assert_not_called()
 
-    def test_bundle_mount_is_a_fresh_exact_request_only_view(self) -> None:
+    def test_command_mount_is_a_fresh_exact_workspace_only_view(self) -> None:
         (self.transport.bundle_store / ("f" * 64 + ".tar")).write_bytes(b"decoy")
         (self.transport.bundle_store / ("f" * 64 + ".json")).write_text(
             "{}",
@@ -231,16 +584,17 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
 
         self.execute_with(_completed(stdout=json.dumps(expected.to_dict())))
 
-        digest = self.request.workspace_bundle.archive_sha256.removeprefix("sha256:")
-        self.assertEqual(
-            self.observed_bundle_names,
-            (f"{digest}.json", f"{digest}.tar"),
-        )
+        self.assertEqual(self.observed_bundle_names, ("tracked.txt",))
         self.assertIsNotNone(self.observed_bundle_source)
         self.assertNotEqual(
             self.observed_bundle_source,
             self.transport.bundle_store,
         )
+        rendered = " ".join(self.observed_command)
+        self.assertIn("dst=/workspace", rendered)
+        self.assertNotIn("dst=/bundles", rendered)
+        self.assertNotIn("dst=/request.json", rendered)
+        self.assertNotIn("dst=/artifacts", rendered)
 
     def test_bundle_archive_symlink_and_digest_tampering_fail_before_run(self) -> None:
         digest = self.request.workspace_bundle.archive_sha256.removeprefix("sha256:")
@@ -346,13 +700,14 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
 
         def command(
             _: DockerVerifierTransport,
-            __: Path,
+            __: CommandSpec,
             *,
-            staging_root: Path,
-            bundle_view: Path,
+            workspace: Path,
             cidfile: Path,
+            asset_view: Path | None,
+            execution_identity: VerifierExecutionIdentity,
         ) -> list[str]:
-            del staging_root, bundle_view
+            del workspace, asset_view, execution_identity
             program = (
                 "from pathlib import Path; import os,time; "
                 f"Path({str(cidfile)!r}).write_text({'a' * 64!r}); "
@@ -377,35 +732,72 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
             "sisyphus_harness.adapters.docker_verifier.subprocess.run",
             side_effect=cleanup,
         ):
-            with self.assertRaisesRegex(
-                DockerVerifierError,
-                "output exceeded limit",
-            ):
-                transport.execute(self.request)
+            capture = transport._capture_command(
+                self.request.profile.commands[0],
+                workspace=self.root / "repository",
+                asset_view=None,
+                cidfile=self.root / "limited.cid",
+                execution_identity=self.request.execution_identity,
+                timeout_seconds=5,
+            )
 
         self.assertLess(time.monotonic() - started, 3)
+        self.assertTrue(capture.output_limited)
+        self.assertEqual(
+            capture.stdout.count("x") + capture.stderr.count("y"),
+            transport.max_output_bytes,
+        )
+        self.assertIn("output exceeded limit", capture.stderr)
         self.assertIn(("docker", "rm", "--force", "a" * 64), cleanup_calls)
         self.assertFalse((transport.artifact_root / self.request.run_id).exists())
 
-    def test_os_and_timeout_failures_are_closed(self) -> None:
-        failures = (
-            OSError("docker unavailable"),
-            subprocess.TimeoutExpired(("docker", "run"), 0.1),
+    def test_runtime_start_failure_is_closed_and_timeout_is_evidence(self) -> None:
+        unavailable = OSError("docker unavailable")
+        with patch.object(
+            DockerVerifierTransport,
+            "_run_container",
+            autospec=True,
+            side_effect=unavailable,
+        ):
+            with self.assertRaisesRegex(
+                DockerVerifierError,
+                "executable probe could not start",
+            ) as raised:
+                self.transport.execute(self.request)
+        self.assertIs(raised.exception.__cause__, unavailable)
+
+        cidfile = self.root / "timeout.cid"
+        timeout = subprocess.TimeoutExpired(
+            ("docker", "run"),
+            0.1,
+            output=b"partial-out",
+            stderr=b"partial-err",
         )
-        for failure in failures:
-            with self.subTest(failure=type(failure).__name__):
-                with patch.object(
-                    DockerVerifierTransport,
-                    "_run_container",
-                    autospec=True,
-                    side_effect=failure,
-                ):
-                    with self.assertRaisesRegex(
-                        DockerVerifierError,
-                        "container execution failed",
-                    ) as raised:
-                        self.transport.execute(self.request)
-                self.assertIs(raised.exception.__cause__, failure)
+        with patch.object(
+            DockerVerifierTransport,
+            "_run_container",
+            autospec=True,
+            side_effect=timeout,
+        ), patch.object(
+            DockerVerifierTransport,
+            "_remove_container",
+            autospec=True,
+        ) as remove:
+            capture = self.transport._capture_command(
+                self.request.profile.commands[0],
+                workspace=self.root / "repository",
+                asset_view=None,
+                cidfile=cidfile,
+                execution_identity=self.request.execution_identity,
+                timeout_seconds=0.1,
+            )
+
+        self.assertTrue(capture.timed_out)
+        self.assertIsNone(capture.returncode)
+        self.assertEqual(capture.stdout, "partial-out")
+        self.assertIn("partial-err", capture.stderr)
+        self.assertIn("timed out", capture.stderr)
+        remove.assert_called_once_with(cidfile)
 
     def test_timeout_forcibly_removes_the_container_recorded_by_cidfile(self) -> None:
         calls: list[tuple[str, ...]] = []
@@ -433,39 +825,140 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
             "sisyphus_harness.adapters.docker_verifier.subprocess.run",
             side_effect=run_cleanup,
         ):
-            with self.assertRaises(DockerVerifierError):
-                self.transport.execute(self.request)
+            capture = self.transport._capture_command(
+                self.request.profile.commands[0],
+                workspace=self.root / "repository",
+                asset_view=None,
+                cidfile=self.root / "timeout-cleanup.cid",
+                execution_identity=self.request.execution_identity,
+                timeout_seconds=0.1,
+            )
 
+        self.assertTrue(capture.timed_out)
         self.assertIn(("docker", "rm", "--force", "a" * 64), calls)
 
     def test_receipt_is_host_validated_before_atomic_publication(self) -> None:
-        expected = _result(self.request)
-        completed = _completed(stdout=json.dumps(expected.to_dict()))
-
-        def omit_receipt(
-            _: DockerVerifierTransport,
-            __: list[str],
-        ) -> SimpleNamespace:
-            return completed
-
         with patch.object(
-            DockerVerifierTransport,
-            "_run_container",
+            FilesystemVerificationEvidenceStore,
+            "read_receipt",
             autospec=True,
-            side_effect=omit_receipt,
+            side_effect=VerificationEvidenceError("invalid receipt"),
         ):
             with self.assertRaisesRegex(
                 DockerVerifierError,
                 "artifact failed host validation",
             ):
-                self.transport.execute(self.request)
+                self.execute_with(_completed(stdout="candidate diagnostic"))
 
         self.assertFalse((self.transport.artifact_root / self.request.run_id).exists())
+
+    def test_inline_staged_and_published_receipts_must_be_identical(self) -> None:
+        expected = _result(self.request)
+        different = replace(expected.receipt, workspace="/different-workspace")
+        with patch.object(
+            FilesystemVerificationEvidenceStore,
+            "read_receipt",
+            autospec=True,
+            return_value=different,
+        ):
+            with self.assertRaisesRegex(DockerVerifierError, "does not match.*artifact"):
+                self.execute_with(_completed(stdout="candidate diagnostic"))
+
+        with patch.object(
+            DockerVerifierTransport,
+            "read_receipt",
+            autospec=True,
+            return_value=different,
+        ):
+            with self.assertRaisesRegex(DockerVerifierError, "published receipt"):
+                self.execute_with(_completed(stdout="candidate diagnostic"))
+
+    def test_publication_lock_and_destination_collisions_fail_closed(self) -> None:
+        self.transport.artifact_root.mkdir(parents=True, exist_ok=True)
+        staging = self.root / "publish-staging"
+        staging.mkdir()
+        with self.assertRaisesRegex(DockerVerifierError, "regular run directory"):
+            self.transport._publish_run(staging, self.request)
+
+        source = staging / self.request.run_id
+        source.mkdir()
+        lock = self.transport.artifact_root / f".{self.request.run_id}.publish.lock"
+        lock.write_text("locked", encoding="utf-8")
+        with self.assertRaisesRegex(DockerVerifierError, "already being published"):
+            self.transport._publish_run(staging, self.request)
+        lock.unlink()
+
+        destination = self.transport.artifact_root / self.request.run_id
+        destination.mkdir()
+        with self.assertRaisesRegex(DockerVerifierError, "already exists"):
+            self.transport._publish_run(staging, self.request)
+
+    def test_publication_commits_request_first_and_rolls_it_back_on_failure(
+        self,
+    ) -> None:
+        self.transport.artifact_root.mkdir(parents=True)
+        staging = self.root / "ordered-publish-staging"
+        source = staging / self.request.run_id
+        source.mkdir(parents=True)
+        (source / "receipt.json").write_text("staged", encoding="utf-8")
+        events: list[str] = []
+
+        def write_request(path: Path, _: object) -> None:
+            events.append("request")
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("request", encoding="utf-8")
+
+        def fail_run_commit(_: object, __: object) -> None:
+            events.append("run")
+            raise OSError("rename failed")
+
+        with patch(
+            "sisyphus_harness.adapters.docker_verifier.write_json_atomic",
+            side_effect=write_request,
+        ), patch(
+            "sisyphus_harness.adapters.docker_verifier.os.replace",
+            side_effect=fail_run_commit,
+        ):
+            with self.assertRaisesRegex(DockerVerifierError, "could not be published"):
+                self.transport._publish_run(staging, self.request)
+
+        self.assertEqual(events, ["request", "run"])
+        self.assertTrue(source.is_dir())
+        self.assertFalse(
+            (self.transport.artifact_root / self.request.run_id).exists()
+        )
+        self.assertFalse(
+            (
+                self.transport.artifact_root
+                / "service-requests"
+                / f"{self.request.run_id}.json"
+            ).exists()
+        )
+
+    def test_container_cleanup_rejects_untrusted_ids_and_ignores_runtime_errors(
+        self,
+    ) -> None:
+        cidfile = self.root / "cleanup.cid"
+        for content in ("x" * 129, "not-a-container-id"):
+            with self.subTest(content=content[:16]), patch(
+                "sisyphus_harness.adapters.docker_verifier.subprocess.run",
+            ) as cleanup:
+                cidfile.write_text(content, encoding="ascii")
+                self.transport._remove_container(cidfile)
+                cleanup.assert_not_called()
+
+        cidfile.write_text("a" * 64, encoding="ascii")
+        with patch(
+            "sisyphus_harness.adapters.docker_verifier.subprocess.run",
+            side_effect=OSError("docker unavailable"),
+        ) as cleanup:
+            self.transport._remove_container(cidfile)
+            cleanup.assert_called_once()
 
     def test_non_protocol_exit_codes_include_bounded_stderr_or_fallback(self) -> None:
         cases = (
             ("prefix-" + "x" * 2100, "x" * 2000),
-            ("   ", "verifier container failed"),
+            ("   ", "Docker could not start the verifier command container"),
         )
         for stderr, expected in cases:
             with self.subTest(has_detail=bool(stderr.strip())):
@@ -474,16 +967,27 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
                         _completed(stdout="ignored", returncode=125, stderr=stderr)
                     )
 
-    def test_empty_and_invalid_output_are_rejected(self) -> None:
-        cases = (
-            ("\n  \n", "returned no result"),
-            ("service log\nnot-json\n", "invalid JSON"),
-            ('{"value": 1, "value": 2}\n', "duplicate field"),
+    def test_candidate_output_is_diagnostic_not_a_service_protocol(self) -> None:
+        outputs = (
+            "\n  \n",
+            "service log\nnot-json\n",
+            '{"value": 1, "value": 2}\n',
         )
-        for stdout, expected in cases:
-            with self.subTest(expected=expected):
-                with self.assertRaisesRegex(DockerVerifierError, expected):
-                    self.execute_with(_completed(stdout=stdout))
+        for index, stdout in enumerate(outputs):
+            request = replace(self.request, run_id=f"diagnostic-output-{index}")
+            with self.subTest(index=index):
+                result = self.execute_with(
+                    _completed(stdout=stdout),
+                    request=request,
+                )
+                command = result.receipt.commands[0]
+                artifact = (
+                    self.transport.artifact_root
+                    / request.run_id
+                    / command.stdout_path
+                )
+                self.assertTrue(result.receipt.passed)
+                self.assertEqual(artifact.read_text(encoding="utf-8"), stdout)
 
     def test_result_must_bind_request_bundle_and_profile(self) -> None:
         other_request = _request(profile=_profile("other-profile"))
@@ -499,6 +1003,8 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
                 size_bytes=1,
                 media_type=VERIFICATION_RECEIPT_MEDIA_TYPE,
             ),
+            execution_identity=self.request.execution_identity,
+            schema_version="sisyphus_harness.verification_service_result.v2",
         )
         cases = (
             (
@@ -510,34 +1016,64 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
                     self.request,
                     workspace_bundle_id=_bundle("8").bundle_id,
                 ),
-                "different workspace bundle",
+                "bindings are inconsistent",
             ),
             (
                 _result(self.request, profile_digest=_digest("7")),
-                "different verification profile",
+                "bindings are inconsistent",
             ),
             (other_run_result, "different run"),
         )
         for result, expected in cases:
             with self.subTest(expected=expected):
                 with self.assertRaisesRegex(DockerVerifierError, expected):
-                    self.execute_with(
-                        _completed(stdout=json.dumps(result.to_dict()))
+                    self.transport._parse_result(
+                        _completed(stdout=json.dumps(result.to_dict())),
+                        self.request,
                     )
 
-    def test_last_nonempty_line_is_a_valid_result_and_exit_one_is_protocol_data(self) -> None:
-        expected = _result(self.request, passed=False)
+    def test_result_with_substituted_command_fails_before_publication(self) -> None:
+        result = _result(self.request)
+        command = replace(
+            result.receipt.commands[0],
+            argv=(sys.executable, "-c", "raise SystemExit(0)"),
+        )
+        receipt = replace(result.receipt, commands=(command,))
+        object.__setattr__(result, "receipt", receipt)
 
+        with self.assertRaisesRegex(DockerVerifierError, "does not match the profile"):
+            self.transport._parse_result(
+                _completed(stdout=json.dumps(result.to_dict())),
+                self.request,
+            )
+        self.assertFalse(
+            (self.transport.artifact_root / self.request.run_id).exists()
+        )
+
+    def test_nonzero_candidate_exit_creates_failed_host_receipt(self) -> None:
         result = self.execute_with(
             _completed(
-                stdout="diagnostic line\n\n" + json.dumps(expected.to_dict()) + "\n",
+                stdout="diagnostic line\n",
                 returncode=1,
                 stderr="verification failed",
             )
         )
 
-        self.assertEqual(result, expected)
-        self.assertEqual(self.transport.read_receipt(result.receipt_artifact), expected.receipt)
+        command = result.receipt.commands[0]
+        run_directory = self.transport.artifact_root / self.request.run_id
+        self.assertFalse(result.receipt.passed)
+        self.assertFalse(command.passed)
+        self.assertEqual(command.exit_code, 1)
+        self.assertEqual(command.failure_category, "command_failure")
+        self.assertEqual(
+            (run_directory / command.stdout_path).read_text(encoding="utf-8"),
+            "diagnostic line\n",
+        )
+        self.assertEqual(
+            (run_directory / command.stderr_path).read_text(encoding="utf-8"),
+            "verification failed",
+        )
+        self.assertEqual(self.transport.read_receipt(result.receipt_artifact), result.receipt)
         self.assertTrue(
             (
                 self.transport.artifact_root
@@ -560,6 +1096,44 @@ class BundleVerifierServiceEdgeTests(unittest.TestCase):
             bundle_store=store,  # type: ignore[arg-type]
             artifact_root=self.artifacts,
             work_root=self.work,
+        )
+
+    def asset_case(
+        self,
+    ) -> tuple[
+        FilesystemWorkspaceBundleStore,
+        BundleVerificationRequest,
+        Path,
+    ]:
+        repository = create_git_repo(self.root / "asset-repository")
+        workspace_store = FilesystemWorkspaceBundleStore(self.root / "asset-bundles")
+        bundle = workspace_store.create(repository)
+        source = self.root / "service-asset-source"
+        source.mkdir()
+        (source / "check.py").write_text("print('asset check')\n", encoding="utf-8")
+        asset_store = FilesystemVerifierAssetBundleStore(
+            self.root / "service-asset-store"
+        )
+        asset = asset_store.create(source)
+        asset_root = self.root / "service-assets"
+        asset_store.materialize(asset, asset_root)
+        profile = VerificationProfile(
+            profile_id="service-assets",
+            commands=(
+                CommandSpec(
+                    name="asset-check",
+                    argv=(sys.executable, str(asset_root / "check.py")),
+                    timeout_seconds=2,
+                    criteria=("asset command completes",),
+                ),
+            ),
+            asset_bundle=asset,
+            schema_version="sisyphus_harness.verification_profile.v2",
+        )
+        return (
+            workspace_store,
+            _request(run_id="service-assets", bundle=bundle, profile=profile),
+            asset_root,
         )
 
     def test_stored_reference_must_equal_request_authority(self) -> None:
@@ -605,6 +1179,72 @@ class BundleVerifierServiceEdgeTests(unittest.TestCase):
         self.assertTrue(
             (self.artifacts / "service-requests" / "real-service.json").is_file()
         )
+
+    def test_service_requires_exactly_the_asset_mount_requested_by_profile(self) -> None:
+        store, asset_request, asset_root = self.asset_case()
+        with self.assertRaisesRegex(VerifierServiceError, "requires.*asset mount"):
+            self.service(store).execute(asset_request)
+
+        no_asset_request = _request(
+            run_id="unrequested-assets",
+            bundle=asset_request.workspace_bundle,
+        )
+        with self.assertRaisesRegex(VerifierServiceError, "unrequested.*forbidden"):
+            BundleVerifierService(
+                bundle_store=store,
+                artifact_root=self.artifacts,
+                work_root=self.work,
+                asset_root=asset_root,
+            ).execute(no_asset_request)
+
+    def test_service_binds_asset_tree_into_v3_receipt(self) -> None:
+        store, request, asset_root = self.asset_case()
+        result = BundleVerifierService(
+            bundle_store=store,
+            artifact_root=self.artifacts,
+            work_root=self.work,
+            asset_root=asset_root,
+        ).execute(request)
+
+        self.assertTrue(result.receipt.passed)
+        self.assertEqual(result.receipt.schema_version, "sisyphus_harness.verification.v3")
+        self.assertEqual(
+            result.receipt.verifier_asset_bundle_id,
+            request.profile.asset_bundle.bundle_id,
+        )
+
+    def test_service_rejects_asset_mutation_before_or_during_execution(self) -> None:
+        store, request, asset_root = self.asset_case()
+        check = asset_root / "check.py"
+        check.chmod(0o644)
+        check.write_text("print('substituted')\n", encoding="utf-8")
+        service = BundleVerifierService(
+            bundle_store=store,
+            artifact_root=self.artifacts,
+            work_root=self.work,
+            asset_root=asset_root,
+        )
+        with patch(
+            "sisyphus_harness.services.verifier.BoundedVerifier.verify",
+        ) as verify:
+            with self.assertRaisesRegex(VerifierServiceError, "does not match"):
+                service.execute(request)
+            verify.assert_not_called()
+
+        asset_root.chmod(0o755)
+        check.chmod(0o644)
+        check.write_text("print('asset check')\n", encoding="utf-8")
+        check.chmod(0o444)
+        asset_root.chmod(0o555)
+        with patch(
+            "sisyphus_harness.services.verifier.verifier_asset_tree_hash",
+            side_effect=(
+                request.profile.asset_bundle.tree_hash,
+                _digest("9"),
+            ),
+        ):
+            with self.assertRaisesRegex(VerifierServiceError, "changed"):
+                service.execute(replace(request, run_id="asset-change-during-run"))
 
 
 class VerifierServiceMainEdgeTests(unittest.TestCase):
@@ -697,6 +1337,28 @@ class VerifierServiceMainEdgeTests(unittest.TestCase):
 
 
 class VerificationServiceContractEdgeTests(unittest.TestCase):
+    def test_execution_identity_is_strict_and_content_bound(self) -> None:
+        identity = _identity()
+        self.assertEqual(
+            VerifierExecutionIdentity.from_dict(identity.to_dict()),
+            identity,
+        )
+        unknown = identity.to_dict()
+        unknown["unexpected"] = True
+        tampered = identity.to_dict()
+        tampered["image_id"] = _digest("f")
+        malformed = identity.to_dict()
+        malformed["image_id"] = "verifier:test"
+
+        for payload, expected in (
+            (unknown, "unknown fields"),
+            (tampered, "digest does not match content"),
+            (malformed, "must be SHA-256"),
+        ):
+            with self.subTest(expected=expected):
+                with self.assertRaisesRegex(ValueError, expected):
+                    VerifierExecutionIdentity.from_dict(payload)
+
     def test_profile_rejects_unsafe_empty_duplicate_and_wrong_schema_values(self) -> None:
         command = _profile().commands[0]
         cases = (
@@ -824,6 +1486,11 @@ class VerificationServiceContractEdgeTests(unittest.TestCase):
 
         with self.assertRaisesRegex(ValueError, "unsupported"):
             replace(_result(request), schema_version="future")
+
+        inconsistent = replace(_result(request).receipt)
+        object.__setattr__(inconsistent, "execution_identity_digest", _digest("f"))
+        with self.assertRaisesRegex(ValueError, "bindings are inconsistent"):
+            replace(_result(request), receipt=inconsistent)
 
     def test_result_wire_contract_rejects_unknown_and_invalid_string_fields(self) -> None:
         payload = _result(_request()).to_dict()

@@ -12,6 +12,7 @@ from .authority import (
     agent_artifact_root,
     authority_database_path,
     verification_artifact_root,
+    verifier_asset_bundle_root,
     workspace_bundle_root,
 )
 from .config import ConfigError, HarnessConfig
@@ -41,6 +42,7 @@ def build_verification_adapter(
     transport = DockerVerifierTransport(
         bundle_store=bundle_store.root,
         artifact_root=verification_artifact_root(authority_root),
+        asset_store=verifier_asset_bundle_root(authority_root),
         image=config.execution.verifier_image,
     )
     return BundleVerificationAdapter(bundle_store=bundle_store, verifier=transport)
@@ -92,6 +94,7 @@ def build_control_task_outcome_service(
     verifier = DockerVerifierTransport(
         bundle_store=bundle_store.root,
         artifact_root=verification_artifact_root(authority_root),
+        asset_store=verifier_asset_bundle_root(authority_root),
         image=config.execution.verifier_image,
     )
     return ControlTaskOutcomeService(

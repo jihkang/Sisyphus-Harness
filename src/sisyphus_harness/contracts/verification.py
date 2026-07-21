@@ -346,6 +346,10 @@ class VerificationReceipt(WireModel):
     workspace_unchanged: bool
     request_digest: str = ""
     schema_version: str = "sisyphus_harness.verification.v2"
+    workspace_bundle_id: str | None = None
+    profile_digest: str | None = None
+    execution_identity_digest: str | None = None
+    verifier_asset_bundle_id: str | None = None
 
     def __post_init__(self) -> None:
         _validate_run_id(self.run_id)
@@ -367,12 +371,41 @@ class VerificationReceipt(WireModel):
         if self.schema_version not in {
             "sisyphus_harness.verification.v1",
             "sisyphus_harness.verification.v2",
+            "sisyphus_harness.verification.v3",
         }:
             raise ValueError("unsupported verification receipt schema")
         if not self.request_digest:
             object.__setattr__(self, "request_digest", _legacy_request_digest(self))
         if _SHA256.fullmatch(self.request_digest) is None:
             raise ValueError("verification request digest must be SHA-256")
+        binding_values = (
+            self.workspace_bundle_id,
+            self.profile_digest,
+            self.execution_identity_digest,
+            self.verifier_asset_bundle_id,
+        )
+        if self.schema_version in {
+            "sisyphus_harness.verification.v1",
+            "sisyphus_harness.verification.v2",
+        }:
+            if any(value is not None for value in binding_values):
+                raise ValueError("legacy verification receipt cannot contain v3 bindings")
+        else:
+            _string(self.workspace_bundle_id, "verification receipt bundle ID")
+            for value, label in (
+                (self.profile_digest, "verification receipt profile digest"),
+                (
+                    self.execution_identity_digest,
+                    "verification receipt execution identity digest",
+                ),
+            ):
+                if not isinstance(value, str) or _SHA256.fullmatch(value) is None:
+                    raise ValueError(f"{label} must be SHA-256")
+            if self.verifier_asset_bundle_id is not None:
+                _string(
+                    self.verifier_asset_bundle_id,
+                    "verification receipt verifier asset bundle ID",
+                )
         if type(self.commands) is not tuple or any(
             not isinstance(command, CommandResult) for command in self.commands
         ):
@@ -390,6 +423,14 @@ class VerificationReceipt(WireModel):
 
     def _unsigned_payload(self) -> dict[str, object]:
         payload = WireModel.to_dict(self)
+        if self.schema_version in {
+            "sisyphus_harness.verification.v1",
+            "sisyphus_harness.verification.v2",
+        }:
+            payload.pop("workspace_bundle_id")
+            payload.pop("profile_digest")
+            payload.pop("execution_identity_digest")
+            payload.pop("verifier_asset_bundle_id")
         if self.schema_version == "sisyphus_harness.verification.v1":
             payload.pop("request_digest")
         payload["criteria"] = _criteria_payload(self.commands)
@@ -397,7 +438,10 @@ class VerificationReceipt(WireModel):
 
     def to_dict(self) -> dict[str, object]:
         payload = self._unsigned_payload()
-        if self.schema_version == "sisyphus_harness.verification.v2":
+        if self.schema_version in {
+            "sisyphus_harness.verification.v2",
+            "sisyphus_harness.verification.v3",
+        }:
             payload["receipt_digest"] = self.receipt_digest
         return payload
 
@@ -424,6 +468,15 @@ class VerificationReceipt(WireModel):
             required = common
         elif schema == "sisyphus_harness.verification.v2":
             required = common | {"request_digest", "receipt_digest"}
+        elif schema == "sisyphus_harness.verification.v3":
+            required = common | {
+                "request_digest",
+                "receipt_digest",
+                "workspace_bundle_id",
+                "profile_digest",
+                "execution_identity_digest",
+                "verifier_asset_bundle_id",
+            }
         else:
             raise ValueError("unsupported verification receipt schema")
         raw = strict_object(raw, required=required, label="verification receipt")
@@ -461,10 +514,29 @@ class VerificationReceipt(WireModel):
                 else ""
             ),
             schema_version=_string(raw["schema_version"], "verification receipt schema"),
+            workspace_bundle_id=_optional_string(
+                raw.get("workspace_bundle_id"),
+                "verification receipt bundle ID",
+            ),
+            profile_digest=_optional_string(
+                raw.get("profile_digest"),
+                "verification receipt profile digest",
+            ),
+            execution_identity_digest=_optional_string(
+                raw.get("execution_identity_digest"),
+                "verification receipt execution identity digest",
+            ),
+            verifier_asset_bundle_id=_optional_string(
+                raw.get("verifier_asset_bundle_id"),
+                "verification receipt verifier asset bundle ID",
+            ),
         )
         if raw["criteria"] != _criteria_payload(commands):
             raise ValueError("verification receipt criteria projection is inconsistent")
-        if receipt.schema_version == "sisyphus_harness.verification.v2":
+        if receipt.schema_version in {
+            "sisyphus_harness.verification.v2",
+            "sisyphus_harness.verification.v3",
+        }:
             recorded = _string(raw["receipt_digest"], "verification receipt digest")
             if recorded != receipt.receipt_digest:
                 raise ValueError("verification receipt digest does not match content")

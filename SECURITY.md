@@ -53,23 +53,26 @@ records repository changes after execution; it does not prevent or undo writes
 outside the repository. Do not use those host paths for untrusted code.
 
 `DockerVerifierTransport` is the supplied external verifier boundary. It uses a
-read-only root filesystem and an isolated read-only view containing only the
-requested bundle archive/reference pair, disables networking, drops capabilities,
-bounds CPU, memory, process count, and combined Docker stdout/stderr, and exposes
-only a fresh writable staging directory. The host rejects symlinked, digest-invalid,
-or concurrently replaced source bundle objects before launch. Output overflow or
-timeout kills the Docker client process group and force-removes its CID. The host
-validates the staged receipt reference and bytes before atomically publishing it
-to the authoritative evidence root. This is the default verification adapter
-for full harness configurations in direct and queued runs. It does not turn
-model inference or an explicitly selected in-process verifier into a sandbox,
-and it is not a multi-tenant isolation claim. The service and test command share one
-container UID and mount namespace; the Docker boundary therefore does not hide
-the current request/profile or writable staging paths from that command. Put
-secret oracle assets behind a separate command sandbox or verifier-only
-namespace.
+read-only root filesystem, disables networking, drops capabilities, and bounds
+CPU, memory, process count, and combined Docker stdout/stderr. The host rejects
+symlinked, digest-invalid, substituted, or concurrently replaced source objects,
+resolves and rechecks the Docker image ID, and executes that ID instead of the
+mutable tag. Each command is PID 1 of a separate container and receives only a
+fresh materialized workspace read-write plus the exact content-addressed verifier
+asset tree read-only when requested. It receives no request file, bundle CAS,
+writable evidence staging, authoritative evidence root, Control database, or
+signing key. Output overflow or timeout kills the Docker client process group and
+force-removes its CID. The trusted host writes stdout/stderr, command results,
+the v3 receipt, and the service result, then validates workspace, profile, image,
+asset, request, command, and artifact bindings before atomic publication. This is
+the default adapter for full harness configurations in direct and queued runs.
+It does not turn model inference or an explicitly selected in-process verifier
+into a sandbox, and it is not a multi-tenant isolation claim. Mounted verifier
+assets remain readable by the command. Secret oracle assets require a separate
+evaluator process or VM that does not expose those bytes to candidate code.
 
-The standalone Compose entry point cannot perform the transport's host-side CAS
+The standalone Compose entry point is a compatibility executor, not the default
+host-owned evidence topology, and cannot perform the transport's host-side CAS
 copy. Its `SISYPHUS_BUNDLE_STORE` must therefore point to a fresh directory that
 contains only the exact validated request archive/reference pair, and its staging
 mount must be fresh and non-authoritative. Mounting the full CAS weakens bundle
@@ -83,6 +86,9 @@ confidentiality even though the mount remains read-only.
 - Build and inspect the configured verifier image before direct or unattended
   worker execution; the default trust mode fails if Docker is unavailable.
 - Review verifier commands before every unattended worker deployment.
+- Freeze reviewed verifier files with `verifier-assets-create` and use the exact
+  returned bundle ID when creating a final Control profile. Treat any replacement
+  as a new profile and evidence contract.
 - Run at most one coding worker per repository unless an external repository
   mutation lock or isolated worktree layer is in place. Queue leases fence the
   terminal database transition, not side effects from a worker that continues

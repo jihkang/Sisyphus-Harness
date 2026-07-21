@@ -72,6 +72,10 @@ class BoundedVerifier:
         run_id: str | None = None,
         request_digest: str | None = None,
         deadline_monotonic: float | None = None,
+        workspace_bundle_id: str | None = None,
+        profile_digest: str | None = None,
+        execution_identity_digest: str | None = None,
+        verifier_asset_bundle_id: str | None = None,
     ) -> VerificationReceipt:
         if not commands:
             raise VerificationError("verification requires at least one command")
@@ -80,6 +84,25 @@ class BoundedVerifier:
             raise VerificationError("verification command names must be unique")
         if deadline_monotonic is not None and not math.isfinite(deadline_monotonic):
             raise VerificationError("verification deadline must be finite")
+        service_bindings = (
+            workspace_bundle_id,
+            profile_digest,
+            execution_identity_digest,
+        )
+        if any(value is not None for value in service_bindings) and not all(
+            value is not None for value in service_bindings
+        ):
+            raise VerificationError(
+                "service verification bindings must be supplied together"
+            )
+        if verifier_asset_bundle_id is not None and workspace_bundle_id is None:
+            raise VerificationError(
+                "verifier asset binding requires service verification bindings"
+            )
+        if workspace_bundle_id is not None and request_digest is None:
+            raise VerificationError(
+                "service verification binding requires request digest"
+            )
         root = workspace.resolve()
         if not root.is_dir():
             raise VerificationError(f"verification workspace does not exist: {workspace}")
@@ -132,6 +155,15 @@ class BoundedVerifier:
             workspace_state_after=final.state_hash,
             workspace_unchanged=workspace_unchanged,
             request_digest=request_digest or request.request_digest,
+            schema_version=(
+                "sisyphus_harness.verification.v3"
+                if workspace_bundle_id is not None
+                else "sisyphus_harness.verification.v2"
+            ),
+            workspace_bundle_id=workspace_bundle_id,
+            profile_digest=profile_digest,
+            execution_identity_digest=execution_identity_digest,
+            verifier_asset_bundle_id=verifier_asset_bundle_id,
         )
         write_json_atomic(run_dir / "receipt.json", receipt.to_dict())
         return receipt
@@ -252,7 +284,7 @@ class BoundedVerifier:
             and exit_code == 0
             and workspace_unchanged
         )
-        failure_category = _failure_category(
+        failure_category = classify_command_failure(
             passed=passed,
             timed_out=timed_out,
             output_limited=output_limited.is_set(),
@@ -311,7 +343,7 @@ def _resolve_executable(workspace: Path, raw: str) -> Path:
     return resolved
 
 
-def _failure_category(
+def classify_command_failure(
     *,
     passed: bool,
     timed_out: bool,

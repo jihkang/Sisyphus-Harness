@@ -7,16 +7,13 @@ from ..contracts.verification import VerificationReceipt
 from ..contracts.verification_service import (
     BundleVerificationRequest,
     VerificationServiceResult,
+    VerifierExecutionIdentity,
 )
 
 
 @runtime_checkable
-class VerificationServicePort(Protocol):
-    """Execute an operator-owned profile against an immutable workspace bundle.
-
-    The port deliberately exposes no task, requirement, or contract mutation API.
-    A verifier reports observations; Control remains responsible for adjudication.
-    """
+class VerificationExecutorPort(Protocol):
+    """Execute a fully admitted request and expose its authoritative receipt."""
 
     def execute(
         self,
@@ -29,6 +26,21 @@ class VerificationServicePort(Protocol):
 
         ...
 
+
+@runtime_checkable
+class VerificationServicePort(VerificationExecutorPort, Protocol):
+    """Admit and execute a profile against an immutable workspace bundle.
+
+    The port deliberately exposes no task, requirement, or contract mutation API.
+    A verifier reports observations; Control remains responsible for adjudication.
+    Unlike the in-container executor, this host-side boundary can resolve the
+    immutable runtime identity before Control constructs the request.
+    """
+
+    def execution_identity(self) -> VerifierExecutionIdentity:
+        """Resolve the immutable runtime identity used for the next request."""
+
+        ...
 
 @runtime_checkable
 class TimeoutBoundVerificationServicePort(Protocol):
