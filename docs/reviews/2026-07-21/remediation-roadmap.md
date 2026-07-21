@@ -30,10 +30,10 @@ merged only after checks and review target the current head SHA.
 ## Current Delivery State
 
 - Slice A merged in PR #8 at `77cd48e` with all required CI jobs passing.
-- Slice B is implemented on `codex/control-task-outcome-authority`; local gates
-  cover schema migration, stale-attempt fencing, immutable rows, idempotent
-  Control publication, contained composition, and CLI projection. CI and merge
-  remain required before closure.
+- Slice B merged in PR #9 at `8cccfef` after all five current-head CI jobs
+  passed. Its gates cover schema migration, stale-attempt fencing, immutable
+  rows, idempotent Control publication, contained composition, and CLI
+  projection.
 - Slices C through F remain open and must start from refreshed `main` after the
   preceding slice is merged.
 

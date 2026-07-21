@@ -41,7 +41,7 @@ an immutable candidate, and independent evidence accepted it.
 - Control composition remains Docker-backed in trusted Agent mode;
 - CLI status renders `job`, `attempt_finished`, and `task_outcome` separately.
 
-## Local Validation
+## Validation Evidence
 
 - full suite: 389 discovered, 387 passed, 2 opt-in Docker tests skipped;
 - branch coverage: 90.3%, above the 90.0% gate;
@@ -52,10 +52,13 @@ an immutable candidate, and independent evidence accepted it.
 - historical evidence manifest: 126 files verified with
   `source_matches_head=false`;
 - frozen lock, compileall, offline sdist/wheel build, and isolated Python 3.14
-  wheel import/CLI smoke: passed.
+  wheel import/CLI smoke: passed;
+- GitHub Actions run `29839229786`: all five current-head jobs passed;
+- PR #9: squash merged as `8cccfef9e6726cb64623b9ba85d35ee69d2e6b8a`.
 
-These are working-branch results. GitHub CI and merge evidence are still required
-before SH-P0-002 is marked closed.
+The implementation, current-head CI, and merge evidence close SH-P0-002 for the
+documented supervised local scope. They do not close the separate deployment,
+oracle, graph-authority, or current-model evidence items below.
 
 ## Remaining Limits
 
