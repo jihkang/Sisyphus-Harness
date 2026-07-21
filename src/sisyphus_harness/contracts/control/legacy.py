@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .agent import AgentResult
-from .codec import WireModel, strict_object
-from .workspace import WorkspaceBundleRef
+from ..agent import AgentResult
+from ..codec import WireModel, strict_object
+from ..workspace import WorkspaceBundleRef
 
 
 @dataclass(frozen=True, slots=True)
 class CodingJobResult(WireModel):
+    """Legacy v1 worker result retained for import and wire compatibility."""
+
     job_id: str
     attempt: int
     attempt_id: str

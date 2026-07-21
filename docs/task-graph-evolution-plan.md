@@ -3,6 +3,9 @@
 - 상태: 단계 구현 중(Phase 1 핵심 vertical slice 및 독립 판정/derived GraphRAG foundation 완료; 전체 Phase 1과 권위 graph는 미완료)
 - 기준일: 2026-07-21
 - 기준 코드: `codex/harden-service-boundaries` / `cf7fcf0` 위의 현재 working tree
+- 후속 권위 체크포인트: `AttemptFinished`와 repository-local `TaskOutcome`은
+  [`ADR 0006`](adr/0006-control-owned-task-outcomes.md)에 구현되었다. 이 문서의
+  admitted TaskGraph/Gap closure 목표는 여전히 미완료다.
 - 범위: structural source ingestion, chunk provenance, derived knowledge graph,
   evidence contract, claim/gap resolution, task derivation, task graph,
   evidence-driven evolution
@@ -14,8 +17,8 @@
 
 | 영역 | 현재 구현 | 검증된 경계 | 아직 남은 권위 계층 |
 | --- | --- | --- | --- |
-| Evidence contract | strict immutable `EvidenceContract`, 별도 `GapClosureRule`, 제한된 predicate AST, 3값 pure evaluator, profile/adapter digest binding | Agent 성공 Boolean과 contract 결과가 서로 독립이며 누락·중복·오류 evidence, scalar/collection subclass와 비교 type mismatch는 fail-closed | template/registry, admitted contract store, TaskOutcome/Gap transition transaction |
-| Final verification | exact `CodingJobResult.output_bundle` → `VerificationServicePort` → typed command observations → Control evaluation | request/bundle/profile/run/commit/tree/artifact/command/observation 결박, workspace state chain, receipt 사실 재계산 | verifier-only hidden asset bundle, structured JUnit/SARIF artifact adapter, durable run/evaluation audit store |
+| Evidence contract | strict immutable `EvidenceContract`, 별도 `GapClosureRule`, 제한된 predicate AST, 3값 pure evaluator, profile/adapter digest binding, repository-local `TaskOutcome` | Agent 성공 Boolean과 contract 결과가 서로 독립이며 누락·중복·오류 evidence, scalar/collection subclass와 비교 type mismatch는 fail-closed | template/registry, admitted contract store, Gap transition transaction |
+| Final verification | exact `AttemptFinished.output_bundle` → `VerificationServicePort` → typed command observations → Control evaluation | request/bundle/profile/run/commit/tree/artifact/command/observation/attempt 결박, workspace state chain, receipt 사실 재계산, immutable outcome publish | verifier-only hidden asset bundle, structured JUnit/SARIF artifact adapter, external durable audit ledger |
 | Derived GraphRAG | immutable SQLite node/edge/term index, provenance/content/metadata/revision digest, candidate/dependency별 depth ≤3 traversal | body → entity → task의 seeded depth-3 경로, atomic dependency cycle 거부, snapshot revision, strict score/path/eligibility projection 검증 | typed SourceDocument/StructuralChunk/EvidenceSpan 및 exact span admission, retrieval coverage manifest, Claim/TaskBasis authority store |
 | Interface | `graph-init`, `graph-put-node`, `graph-put-edge`, `graph-search`, `graph-dependencies`, `graph-next` JSON CLI | 색인 revision과 모든 query 결과에 `derived_candidate_only` authority 표시 | source/evidence/contract explain 및 admission commands |
 

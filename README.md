@@ -20,8 +20,8 @@ The project is experimental and intended for supervised local use. It provides:
 - timeouts, process-group termination, full output, executable hashes, and
   workspace-mutation detection;
 - immutable evidence contracts with bounded three-valued predicate evaluation;
-- Control-owned shadow adjudication over the exact Worker output bundle, independent
-  of the coding agent's reported success;
+- append-only Worker `AttemptFinished` lineage and Control-owned `TaskOutcome`
+  adjudication over the exact output bundle, independent of Agent-reported success;
 - a rebuildable, candidate-only SQLite knowledge graph with anchored depth-three
   search, dependency inspection, and deterministic next-step context;
 - a strict JSON coding loop with automatic deterministic compaction;
@@ -150,6 +150,10 @@ sisyphus-harness task-submit \
 sisyphus-harness worker-once \
   --repo . \
   --worker-id local-worker-1
+
+sisyphus-harness task-status \
+  --repo . \
+  --job-id job-id-from-task-submit
 ```
 
 After argument parsing, runtime commands print structured JSON. Standard
@@ -164,8 +168,23 @@ grant success.
 That string coverage remains a compatibility check, not completion authority.
 `ControlEvidenceContractService` turns only digest-bound command facts into
 `EvidenceObservation` values and evaluates an operator-owned `EvidenceContract`.
-It does not use `AgentResult.success` as evidence and does not mutate task or queue
-state.
+`ControlTaskOutcomeService` reloads the current immutable attempt, always runs the
+final profile through the Docker verifier, and is the only service that can
+publish `passed`, `failed`, or `indeterminate`:
+
+```bash
+sisyphus-harness task-adjudicate \
+  --repo . \
+  --job-id job-id-from-task-submit \
+  --profile control-profile.json \
+  --contract evidence-contract.json \
+  --run-id control-final-001
+```
+
+Both JSON inputs are strict, digest-bearing contracts. `jobs.status=completed`
+means only that Worker execution published `AttemptFinished`; inspect
+`task_outcome.decision` for semantic completion. The low-level `queue-finish`
+command cannot create attempt authority and therefore cannot create an outcome.
 
 Initialize and inspect the derived knowledge graph with:
 

@@ -10,15 +10,20 @@ from .adapters.in_process import (
 )
 from .authority import (
     agent_artifact_root,
+    authority_database_path,
     verification_artifact_root,
     workspace_bundle_root,
 )
 from .config import ConfigError, HarnessConfig
 from .contracts.policy import CandidatePolicy
 from .infra.workspace_bundle import FilesystemWorkspaceBundleStore
+from .infra.control_outcomes import SQLiteTaskOutcomeAuthority
 from .ports.agent_run import AgentRunPort
+from .ports.control_outcomes import TaskOutcomeServicePort
 from .ports.verification import VerificationPort
 from .provider import ChatProvider
+from .services.control_outcomes import ControlTaskOutcomeService
+from .services.evidence_contract import ControlEvidenceContractService
 from .workspace import contained_path
 
 
@@ -75,4 +80,30 @@ def build_agent_run(
     )
 
 
-__all__ = ["build_agent_run", "build_verification_adapter"]
+def build_control_task_outcome_service(
+    authority_root: Path,
+    config: HarnessConfig,
+) -> TaskOutcomeServicePort:
+    """Compose Control final adjudication with an always-contained verifier."""
+
+    bundle_store = FilesystemWorkspaceBundleStore(
+        workspace_bundle_root(authority_root)
+    )
+    verifier = DockerVerifierTransport(
+        bundle_store=bundle_store.root,
+        artifact_root=verification_artifact_root(authority_root),
+        image=config.execution.verifier_image,
+    )
+    return ControlTaskOutcomeService(
+        adjudicator=ControlEvidenceContractService(verifier),
+        authority=SQLiteTaskOutcomeAuthority(
+            authority_database_path(authority_root)
+        ),
+    )
+
+
+__all__ = [
+    "build_agent_run",
+    "build_control_task_outcome_service",
+    "build_verification_adapter",
+]

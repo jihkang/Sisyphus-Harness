@@ -10,6 +10,10 @@ PACKAGE_ROOT = REPO_ROOT / "src" / "sisyphus_harness"
 ARCHITECTURE_DOC = REPO_ROOT / "docs" / "architecture-and-data-pipeline.md"
 REVIEW_DOC = REPO_ROOT / "docs" / "architecture-conformance-review-2026-07-18.md"
 DOCS_INDEX = REPO_ROOT / "docs" / "README.md"
+STATUS_INDEX = REPO_ROOT / "docs" / "status" / "README.md"
+CONFORMANCE_MODEL = REPO_ROOT / "docs" / "status" / "conformance-model.md"
+DEBT_REGISTER = REPO_ROOT / "docs" / "status" / "implementation-debt.md"
+MARKDOWN_LINK = re.compile(r"\[[^\]]*\]\(([^)]+)\)")
 
 
 class ArchitectureDocumentationTests(unittest.TestCase):
@@ -65,10 +69,54 @@ class ArchitectureDocumentationTests(unittest.TestCase):
             "reviews/2026-07-21/README.md",
             "reviews/2026-07-21/verification-gates.md",
             "reviews/2026-07-21/stage-0-validation.md",
+            "status/README.md",
+            "status/conformance-model.md",
+            "status/implementation-debt.md",
         ):
             with self.subTest(target=target):
                 self.assertIn(target, content)
                 self.assertTrue((DOCS_INDEX.parent / target).is_file())
+
+    def test_living_status_documents_define_canonical_conformance_and_debt(self) -> None:
+        status_index = STATUS_INDEX.read_text(encoding="utf-8")
+        conformance = CONFORMANCE_MODEL.read_text(encoding="utf-8")
+        debt = DEBT_REGISTER.read_text(encoding="utf-8")
+
+        self.assertIn("implementation-debt.md", status_index)
+        self.assertIn("conformance-model.md", status_index)
+        for token in ("GREEN", "AMBER", "RED", "GRAY"):
+            with self.subTest(token=token):
+                self.assertIn(f"`{token}`", conformance)
+        for debt_id in (
+            "SH-VERIFY-001",
+            "SH-GRAPH-001",
+            "SH-ARCH-001",
+            "SH-EVOLVE-001",
+            "SH-BENCH-001",
+            "SH-GOV-001",
+        ):
+            with self.subTest(debt_id=debt_id):
+                self.assertEqual(debt.count(f"`{debt_id}`"), 1)
+
+    def test_relative_documentation_links_resolve(self) -> None:
+        for document in sorted((REPO_ROOT / "docs").rglob("*.md")):
+            content = document.read_text(encoding="utf-8")
+            for raw_target in MARKDOWN_LINK.findall(content):
+                target = raw_target.split("#", 1)[0]
+                if (
+                    not target
+                    or target.startswith(("https://", "http://", "mailto:"))
+                ):
+                    continue
+                resolved = (document.parent / target).resolve()
+                with self.subTest(
+                    document=document.relative_to(REPO_ROOT),
+                    target=raw_target,
+                ):
+                    self.assertTrue(
+                        resolved.exists(),
+                        f"broken relative documentation link: {raw_target}",
+                    )
 
     def test_conformance_review_pins_scope_and_open_runtime_gaps(self) -> None:
         content = REVIEW_DOC.read_text(encoding="utf-8")

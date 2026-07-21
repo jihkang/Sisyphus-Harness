@@ -21,6 +21,16 @@ authority when a dated document describes an older revision.
 - [ADR 0003](adr/0003-verification-authority.md): verification authority.
 - [ADR 0004](adr/0004-authority-and-artifact-ownership.md): control and artifact ownership.
 - [ADR 0005](adr/0005-default-deny-execution.md): default-deny writes and contained verification.
+- [ADR 0006](adr/0006-control-owned-task-outcomes.md): execution lineage and Control-owned semantic outcomes.
+
+## Current Status
+
+- [Status map](status/README.md): authority order and update contract for living
+  project status.
+- [Canonical conformance model](status/conformance-model.md): `GREEN`, `AMBER`,
+  `RED`, and `GRAY` definitions and promotion rules.
+- [Implementation debt register](status/implementation-debt.md): stable debt IDs,
+  current facts, dependency slices, and executable exit conditions.
 
 ## Reviews
 
@@ -30,6 +40,10 @@ authority when a dated document describes an older revision.
   executable proof required before a finding is closed.
 - [2026-07-21 Stage 0 validation](reviews/2026-07-21/stage-0-validation.md):
   local results and remaining external proof.
+- [2026-07-21 Slice B Control authority](reviews/2026-07-21/stage-b-control-authority.md):
+  AttemptFinished fencing and TaskOutcome publication.
+- [2026-07-21 Slice B code review](reviews/2026-07-21/stage-b-code-review.md):
+  resolved findings and remaining authority risks.
 - [2026-07-21 code review](code-review-2026-07-21.md): prior merged-scope review.
 - [2026-07-18 architecture conformance](architecture-conformance-review-2026-07-18.md):
   historical code/document comparison.

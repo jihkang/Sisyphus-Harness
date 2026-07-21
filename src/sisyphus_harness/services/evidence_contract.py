@@ -26,9 +26,8 @@ from ..ports.verification_service import VerificationServicePort
 class ControlEvidenceContractService:
     """Run exact-bundle verification and evaluate its facts in Control.
 
-    This is intentionally a shadow adjudication service.  It returns immutable
-    evidence and an evaluation, but receives no queue/task repository and has no
-    transition method.
+    This pure boundary returns immutable evidence and an evaluation.  Publishing
+    the semantic result remains a separate Control-owned transaction.
     """
 
     verifier: VerificationServicePort

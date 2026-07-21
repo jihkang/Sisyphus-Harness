@@ -19,7 +19,7 @@ from sisyphus_harness.adapters.receipt_observations import (
 )
 from sisyphus_harness.contracts.agent import AgentResult
 from sisyphus_harness.contracts.artifacts import ArtifactRef
-from sisyphus_harness.contracts.control import CodingJobResult
+from sisyphus_harness.contracts.control import AttemptFinished
 from sisyphus_harness.contracts.evidence_contract import (
     AllOf,
     ClauseRef,
@@ -70,7 +70,7 @@ def _bundle(character: str) -> WorkspaceBundleRef:
     )
 
 
-def _job(*, agent_success: bool) -> CodingJobResult:
+def _job(*, agent_success: bool) -> AttemptFinished:
     agent = AgentResult(
         run_id="agent-run-1",
         success=agent_success,
@@ -83,11 +83,10 @@ def _job(*, agent_success: bool) -> CodingJobResult:
         changed_paths=("module.py",),
         artifact_path="agent/agent-run-1",
     )
-    return CodingJobResult(
+    return AttemptFinished(
         job_id="job-1",
         attempt=1,
         attempt_id="job-1/attempt-0001",
-        success=agent_success,
         source_bundle=_bundle("a"),
         output_bundle=_bundle("b"),
         agent_result=agent,
@@ -327,7 +326,7 @@ class StatefulObservationValueAdapter:
         return (changing, *observations[1:])
 
 
-class CodingJobResultSubclass(CodingJobResult):
+class AttemptFinishedSubclass(AttemptFinished):
     pass
 
 
@@ -373,7 +372,7 @@ class StaticResultVerifier:
         return self.latest_result.receipt
 
 
-def _request(job: CodingJobResult) -> EvidenceAdjudicationRequest:
+def _request(job: AttemptFinished) -> EvidenceAdjudicationRequest:
     profile = _profile()
     return EvidenceAdjudicationRequest(
         job_result=job,
@@ -485,6 +484,65 @@ class EvidenceAdjudicationTests(unittest.TestCase):
                 with self.assertRaisesRegex(VerificationBindingError, message):
                     service.adjudicate(_request(_job(agent_success=True)))
 
+    def test_adjudication_result_rejects_internal_binding_mismatches(self) -> None:
+        valid = ControlEvidenceContractService(
+            ResultVerifier(command_passed=True)
+        ).adjudicate(_request(_job(agent_success=True)))
+
+        def wrong_request_digest():
+            result = replace(valid.verification_result)
+            object.__setattr__(result, "request_digest", _DIGEST_C)
+            return replace(valid, verification_result=result)
+
+        def wrong_receipt_run():
+            receipt = replace(
+                valid.verification_result.receipt,
+                run_id="different-run",
+            )
+            artifact = replace(
+                valid.verification_result.receipt_artifact,
+                artifact_id="different-run/receipt.json",
+            )
+            result = replace(
+                valid.verification_result,
+                receipt=receipt,
+                receipt_artifact=artifact,
+            )
+            return replace(valid, verification_result=result)
+
+        mutations = (
+            (
+                lambda: replace(valid, output_bundle_id=_bundle("c").bundle_id),
+                "output bundle",
+            ),
+            (wrong_request_digest, "does not match its request"),
+            (
+                lambda: replace(
+                    valid,
+                    verification_result=replace(
+                        valid.verification_result,
+                        workspace_bundle_id=_bundle("c").bundle_id,
+                    ),
+                ),
+                "does not match the output bundle",
+            ),
+            (
+                lambda: replace(
+                    valid,
+                    verification_result=replace(
+                        valid.verification_result,
+                        profile_digest=_DIGEST_C,
+                    ),
+                ),
+                "does not match the profile",
+            ),
+            (wrong_receipt_run, "does not match the verification run"),
+        )
+        for mutation, message in mutations:
+            with self.subTest(message=message):
+                with self.assertRaisesRegex(ValueError, message):
+                    mutation()
+
     def test_control_rejects_foreign_facts_from_a_custom_adapter(self) -> None:
         service = ControlEvidenceContractService(
             ResultVerifier(command_passed=True),
@@ -520,7 +578,7 @@ class EvidenceAdjudicationTests(unittest.TestCase):
         substitutions = (
             (
                 "job_result",
-                CodingJobResultSubclass.from_dict(request.job_result.to_dict()),
+                AttemptFinishedSubclass.from_dict(request.job_result.to_dict()),
                 "job result",
             ),
             (

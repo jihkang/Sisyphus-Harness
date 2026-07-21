@@ -29,12 +29,14 @@ from .config import (
 )
 from .contracts.agent import AgentTask
 from .contracts.codec import loads_strict_json
+from .contracts.evidence_contract import EvidenceContract
 from .contracts.knowledge import (
     DERIVED_CANDIDATE_AUTHORITY,
     KnowledgeEdge,
     KnowledgeNode,
 )
 from .contracts.policy import CandidatePolicy
+from .contracts.verification_service import VerificationProfile
 from .database import Database
 from .evolution import (
     EvolutionRunner,
@@ -43,12 +45,18 @@ from .evolution import (
     validate_evolution_id,
 )
 from .infra.workspace_bundle import FilesystemWorkspaceBundleStore
+from .infra.control_outcomes import SQLiteTaskOutcomeAuthority
 from .infra.knowledge_index import KnowledgeIndexError, SQLiteKnowledgeIndex
 from .knowledge_graph import KnowledgeGraph
 from .policy import PolicyRegistry
 from .provider import OpenAICompatibleProvider
+from .ports.control_outcomes import TaskOutcomeRequest
 from .queue import JobQueue
-from .runtime import build_agent_run, build_verification_adapter
+from .runtime import (
+    build_agent_run,
+    build_control_task_outcome_service,
+    build_verification_adapter,
+)
 from .worker import CodingWorker
 from .workspace import contained_path
 
@@ -96,6 +104,22 @@ def build_parser() -> argparse.ArgumentParser:
     submit_parser.add_argument("--idempotency-key", required=True)
     submit_parser.add_argument("--run-id")
     _policy_choice(submit_parser)
+
+    status_parser = subparsers.add_parser("task-status")
+    _repo_argument(status_parser)
+    status_parser.add_argument("--job-id", required=True)
+
+    adjudicate_parser = subparsers.add_parser("task-adjudicate")
+    _repo_argument(adjudicate_parser)
+    _config_argument(adjudicate_parser)
+    adjudicate_parser.add_argument("--job-id", required=True)
+    adjudicate_parser.add_argument("--profile", required=True)
+    adjudicate_parser.add_argument("--contract", required=True)
+    adjudicate_parser.add_argument("--run-id", required=True)
+    adjudicate_parser.add_argument(
+        "--producer-authority",
+        default="control.verifier.local",
+    )
 
     worker_parser = subparsers.add_parser("worker-once")
     _repo_argument(worker_parser)
@@ -280,6 +304,47 @@ def _main(argv: Sequence[str] | None) -> int:
         )
         _print_json(job.to_dict())
         return 0
+    if args.command == "task-status":
+        queue = JobQueue(authority_database_path(repo_root))
+        authority = SQLiteTaskOutcomeAuthority(authority_database_path(repo_root))
+        job = queue.get(args.job_id)
+        attempt = authority.get_attempt_finished(args.job_id)
+        outcome = authority.get_task_outcome(args.job_id)
+        _print_json(
+            {
+                "attempt_finished": (
+                    attempt.to_dict() if attempt is not None else None
+                ),
+                "job": job.to_dict() if job is not None else None,
+                "task_outcome": outcome.to_dict() if outcome is not None else None,
+            }
+        )
+        return 0
+    if args.command == "task-adjudicate":
+        config = load_harness_config(_repo_path(repo_root, args.config))
+        profile = VerificationProfile.from_dict(
+            _strict_json_file(
+                _repo_path(repo_root, args.profile),
+                label="verification profile",
+            )
+        )
+        contract = EvidenceContract.from_dict(
+            _strict_json_file(
+                _repo_path(repo_root, args.contract),
+                label="evidence contract",
+            )
+        )
+        outcome = build_control_task_outcome_service(repo_root, config).adjudicate(
+            TaskOutcomeRequest(
+                job_id=args.job_id,
+                profile=profile,
+                contract=contract,
+                run_id=args.run_id,
+                producer_authority=args.producer_authority,
+            )
+        )
+        _print_json(outcome.to_dict())
+        return 0 if outcome.decision.value == "passed" else 1
     if args.command == "worker-once":
         job = CodingWorker(repo_root).run_once(
             worker_id=args.worker_id,
@@ -586,6 +651,16 @@ def _strict_json_object(raw: str, field: str) -> dict[str, object]:
     payload = loads_strict_json(raw, label=field)
     if not isinstance(payload, dict):
         raise ValueError(f"{field} must decode to an object")
+    return payload
+
+
+def _strict_json_file(path: Path, *, label: str) -> dict[str, object]:
+    content = path.read_bytes()
+    if len(content) > 4 * 1024 * 1024:
+        raise ValueError(f"{label} exceeds byte limit")
+    payload = loads_strict_json(content, label=label)
+    if not isinstance(payload, dict):
+        raise ValueError(f"{label} must be an object")
     return payload
 
 
