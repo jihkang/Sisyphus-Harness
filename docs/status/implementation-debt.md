@@ -1,7 +1,7 @@
 # Implementation Debt Register
 
 - Register date: 2026-07-21
-- Scope: Harness architecture including Slice A and this Slice B implementation revision
+- Scope: Harness architecture through merged Slice B
 - Status vocabulary: [canonical conformance model](conformance-model.md)
 - Detailed ordering: [remediation roadmap](../reviews/2026-07-21/remediation-roadmap.md)
 
@@ -45,4 +45,5 @@ revision making the claim.
 | ID | Closed by | Evidence |
 | --- | --- | --- |
 | `SH-P0-001` | PR #8 | default-deny write allowlist and mutation regression |
+| `SH-P0-002` | PR #9 at `8cccfef` | Worker/Control authority separation and five passing current-head CI jobs |
 | `SH-P0-006` | PR #8 | Docker-default verification and real-container boundary probes |

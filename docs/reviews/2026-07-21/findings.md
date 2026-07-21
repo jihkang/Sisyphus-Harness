@@ -5,7 +5,7 @@
 | ID | Finding | Required invariant | State |
 | --- | --- | --- | --- |
 | SH-P0-001 | Agent could rewrite verifier inputs | model writes are restricted to an operator-owned positive allowlist | Closed by merged PR #8 |
-| SH-P0-002 | Control adjudication is shadow-only | only Control can publish semantic TaskOutcome | Locally implemented in Slice B; CI/merge pending |
+| SH-P0-002 | Control adjudication is shadow-only | only Control can publish semantic TaskOutcome | Closed by merged PR #9 at `8cccfef`; five current-head CI jobs passed |
 | SH-P0-003 | Qwen evidence was presented without a current-revision classification | every measurement declares historical or current-release scope | Historical manifest verification passed |
 | SH-P0-004 | Review completed after oversized merges | protected main requires current CI and review | Open repository setting |
 | SH-P0-005 | strict response schema used a forbidden union root | strict schema has one object root and explicit fallback mode | Merged; live endpoint validation pending |

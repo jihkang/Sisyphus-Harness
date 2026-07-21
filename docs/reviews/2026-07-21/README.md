@@ -23,7 +23,7 @@ finding source; these documents separate execution state from analysis prose.
 | --- | --- | --- |
 | Stage 0 baseline validation | Complete for local gates; external proof remains explicit | stage-0-validation |
 | Slice A trust-boundary repair | Merged as PR #8 at `77cd48e` | source, CI, ADR 0005 |
-| Slice B authoritative Control outcome | Locally implemented; CI pending | database and Control integration tests, ADR 0006 |
+| Slice B authoritative Control outcome | Merged as PR #9 at `8cccfef` | source, five CI jobs, ADR 0006 |
 | Slice C immutable verifier oracle | Planned | bundle/profile/receipt digests |
 | Slice D module/shared-code cleanup | Planned | remediation roadmap |
 | Slice E type/race/crash hardening | Planned | verification gates |

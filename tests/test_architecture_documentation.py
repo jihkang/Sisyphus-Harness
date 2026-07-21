@@ -88,6 +88,7 @@ class ArchitectureDocumentationTests(unittest.TestCase):
             with self.subTest(token=token):
                 self.assertIn(f"`{token}`", conformance)
         for debt_id in (
+            "SH-P0-002",
             "SH-VERIFY-001",
             "SH-GRAPH-001",
             "SH-ARCH-001",
@@ -97,6 +98,22 @@ class ArchitectureDocumentationTests(unittest.TestCase):
         ):
             with self.subTest(debt_id=debt_id):
                 self.assertEqual(debt.count(f"`{debt_id}`"), 1)
+
+    def test_slice_b_status_is_bound_to_merged_head_evidence(self) -> None:
+        findings = (
+            REPO_ROOT / "docs" / "reviews" / "2026-07-21" / "findings.md"
+        ).read_text(encoding="utf-8")
+        record = (
+            REPO_ROOT
+            / "docs"
+            / "reviews"
+            / "2026-07-21"
+            / "stage-b-control-authority.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("Closed by merged PR #9 at `8cccfef`", findings)
+        self.assertIn("29839229786", record)
+        self.assertIn("8cccfef9e6726cb64623b9ba85d35ee69d2e6b8a", record)
 
     def test_relative_documentation_links_resolve(self) -> None:
         for document in sorted((REPO_ROOT / "docs").rglob("*.md")):
