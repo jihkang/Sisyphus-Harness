@@ -16,3 +16,6 @@ or merge evidence.
 - [Knowledge responsibility decomposition](knowledge-decomposition.md): graph
   facade, shared read context, query services, SQLite lifecycle, projection,
   query, and integrity review.
+- [Workspace tool responsibility decomposition](workspace-tools-decomposition.md):
+  facade, strict arguments, path policy, bounded IO, query, mutation, and parity
+  review.

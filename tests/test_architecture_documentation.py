@@ -127,6 +127,21 @@ class ArchitectureDocumentationTests(unittest.TestCase):
             with self.subTest(cli_marker=marker):
                 self.assertIn(marker, cli)
 
+        self.assertIn("components/workspace-tools.md", content)
+        workspace_tools = (
+            ARCHITECTURE_INDEX.parent / "components" / "workspace-tools.md"
+        ).read_text(encoding="utf-8")
+        for marker in (
+            "## Responsibility",
+            "## Owned Authority",
+            "## Forbidden Authority",
+            "## Current Implementation",
+            "## Target Boundary",
+            "## Open Debt And Evidence",
+        ):
+            with self.subTest(workspace_tool_marker=marker):
+                self.assertIn(marker, workspace_tools)
+
         self.assertIn("components/knowledge.md", content)
         knowledge = (
             ARCHITECTURE_INDEX.parent / "components" / "knowledge.md"

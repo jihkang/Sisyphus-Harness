@@ -17,10 +17,12 @@ Resolve the Git common directory, own SQLite schema and transactions, and
 control idempotent jobs, leases, heartbeats, execution-terminal transitions,
 immutable `AttemptFinished` lineage, and Control-owned `TaskOutcome` records.
 
-`tools.py` and `workspace.py`
+`tools.py`, `workspace_tool_*.py`, and `workspace.py`
 
-Expose six repository-local file tools. Paths are contained after resolution,
-Git, authority paths, and the configuration loaded for a run are protected from
+Expose six repository-local file tools. `tools.py` is the public facade;
+argument decoding, path/write policy, bounded IO, query handlers, and mutation
+handlers are separately owned. Paths are contained after resolution, Git,
+authority paths, and the configuration loaded for a run are protected from
 model writes, lexically ambiguous and Git-ignored write targets are rejected,
 existing writes require a content hash, and writes are atomic.
 Workspace snapshots bind a commit SHA to staged, unstaged, and untracked
