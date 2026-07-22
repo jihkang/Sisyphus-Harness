@@ -2,9 +2,10 @@
 
 - Review date: 2026-07-22
 - Base revision: `main@fbe3adf`
-- Reviewed state: working branch before delivery commit
+- Implementation revision: `d0d0c863818f267bc4bb193adcd880cccc8c76bc`
+- Merge revision: `59f178e8673028305cf1ac5d02dab1fc4920ac3b`
 - Review scope: `LocalCodingAgent` responsibility decomposition
-- Delivery status: local validation complete; PR/CI/merge pending
+- Delivery status: merged by PR #15 after CI run `29917555768` passed all five jobs
 
 ## Findings
 
@@ -63,7 +64,11 @@ Local validation evidence:
   imports, and CLI startup passed;
 - a source-rebuilt verifier image passed all three real-Docker boundary probes.
 
-Current-head CI, PR, and merge identifiers remain pending delivery evidence.
+PR-head CI run `29917555768` passed `static-and-container`, core on Python 3.11
+and 3.14, evolution, and package-and-evidence against implementation head
+`d0d0c863818f267bc4bb193adcd880cccc8c76bc`. PR #15 then squash-merged as
+`59f178e8673028305cf1ac5d02dab1fc4920ac3b`, and local `main` was fetched and
+fast-forwarded to the same revision before this delivery record.
 
 ## Residual Risk
 
