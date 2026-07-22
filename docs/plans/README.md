@@ -8,3 +8,5 @@ gates. It is not evidence that the target has been implemented.
 Current plans:
 
 - [Verifier command isolation](2026-07-22-verifier-command-isolation.md)
+- [Responsibility decomposition](2026-07-22-responsibility-decomposition.md)
+- [Local coding Agent loop decomposition](2026-07-22-agent-loop-decomposition.md)

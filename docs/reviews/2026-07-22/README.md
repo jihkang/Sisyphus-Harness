@@ -9,3 +9,5 @@ or merge evidence.
   authority, failure-path, compatibility, and maintainability review.
 - [Docker verifier decomposition](docker-verifier-decomposition.md): facade,
   runtime, host evidence, input staging, and publication responsibility review.
+- [Local coding Agent decomposition](agent-loop-decomposition.md): facade,
+  loop, state, context, transition, and artifact responsibility review.

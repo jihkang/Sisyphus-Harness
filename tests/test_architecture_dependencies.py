@@ -186,6 +186,83 @@ class ArchitectureDependencyTests(unittest.TestCase):
                 )
                 self.assertIn(symbol, source)
 
+    def test_local_coding_agent_facade_keeps_loop_responsibilities_extracted(
+        self,
+    ) -> None:
+        facade_path = PACKAGE_ROOT / "agent.py"
+        tree = ast.parse(
+            facade_path.read_text(encoding="utf-8"),
+            filename=str(facade_path),
+        )
+        facade = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "LocalCodingAgent"
+        )
+        self.assertLessEqual(facade.end_lineno - facade.lineno + 1, 200)
+        run_method = next(
+            node
+            for node in facade.body
+            if isinstance(node, ast.FunctionDef) and node.name == "run"
+        )
+        self.assertLessEqual(run_method.end_lineno - run_method.lineno + 1, 100)
+        self.assertFalse(
+            any(
+                isinstance(node, (ast.For, ast.While))
+                for node in ast.walk(run_method)
+            )
+        )
+        method_names = {
+            node.name for node in facade.body if isinstance(node, ast.FunctionDef)
+        }
+        self.assertFalse(
+            method_names.intersection(
+                {"_finish", "_should_compact", "_step_payload"}
+            )
+        )
+
+        direct_imports = {
+            imported
+            for node in tree.body
+            for imported in _absolute_import_roots(node)
+        }
+        self.assertFalse(
+            direct_imports.intersection({"datetime", "hashlib", "json"})
+        )
+
+        collaborators = {
+            "agent_artifacts.py": "AgentRunRecorder",
+            "agent_context.py": "AgentPromptRenderer",
+            "agent_loop.py": "AgentRunLoop",
+            "agent_state.py": "AgentRunState",
+            "agent_transitions.py": "AgentVerificationTransitionHandler",
+        }
+        imported_symbols = {
+            alias.name
+            for node in tree.body
+            if isinstance(node, ast.ImportFrom) and node.level == 1
+            for alias in node.names
+        }
+        self.assertFalse(set(collaborators.values()).difference(imported_symbols))
+        for filename, symbol in collaborators.items():
+            with self.subTest(filename=filename):
+                source = (PACKAGE_ROOT / filename).read_text(encoding="utf-8")
+                self.assertIn(symbol, source)
+
+        for filename in collaborators:
+            component_tree = ast.parse(
+                (PACKAGE_ROOT / filename).read_text(encoding="utf-8"),
+                filename=filename,
+            )
+            for node in component_tree.body:
+                if isinstance(node, ast.ClassDef):
+                    with self.subTest(filename=filename, class_name=node.name):
+                        self.assertLessEqual(
+                            node.end_lineno - node.lineno + 1,
+                            325,
+                        )
+
 
 def _imports(path: Path) -> list[ast.Import | ast.ImportFrom]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -194,6 +271,14 @@ def _imports(path: Path) -> list[ast.Import | ast.ImportFrom]:
         for node in ast.walk(tree)
         if isinstance(node, (ast.Import, ast.ImportFrom))
     ]
+
+
+def _absolute_import_roots(node: ast.stmt) -> set[str]:
+    if isinstance(node, ast.Import):
+        return {alias.name.split(".", 1)[0] for alias in node.names}
+    if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+        return {node.module.split(".", 1)[0]}
+    return set()
 
 
 if __name__ == "__main__":
