@@ -24,7 +24,8 @@ class ArchitectureDocumentationTests(unittest.TestCase):
         for required in (
             'CLI["cli.py"] --> Runtime["runtime.py"]',
             'Runtime --> BundleAdapter["adapters/bundle_verification.py"]',
-            'Agent --> VerificationPort["VerificationPort"]',
+            'Agent --> AgentLoop["agent_loop.py"]',
+            'AgentTransitions --> VerificationPort["VerificationPort"]',
             'Bench --> AgentFactory["AgentRunFactoryPort"]',
             "현재 구현, 전환 상태, 목표 상태",
             "VerificationServicePort",

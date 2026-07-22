@@ -26,10 +26,14 @@ existing writes require a content hash, and writes are atomic.
 Workspace snapshots bind a commit SHA to staged, unstaged, and untracked
 content.
 
-`agent.py`, `protocol.py`, and `provider.py`
+`agent.py`, `agent_loop.py`, `agent_context.py`, `agent_state.py`,
+`agent_transitions.py`, `agent_artifacts.py`, `protocol.py`, and `provider.py`
 
-Run the local coding loop. The provider must return exactly one JSON decision.
-The harness controls observation, reflection, compaction, tool execution,
+Run the local coding loop. `agent.py` is the public composition facade;
+provider/protocol orchestration, deterministic context, mutable run state,
+tool and verification transitions, and artifact projection are separately
+owned behind it. The provider must return exactly one JSON decision. The
+harness controls observation, reflection, compaction, tool execution,
 stagnation detection, budgets, and final verification.
 
 `verifier.py`, `services/verifier.py`, and `adapters/docker_*.py`

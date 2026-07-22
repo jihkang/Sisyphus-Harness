@@ -61,6 +61,7 @@ authority when a dated document describes an older revision.
 - [Implementation plans](plans/): current architecture and security changes with
   explicit invariants, migration steps, and completion gates.
 - [Responsibility decomposition plan](plans/2026-07-22-responsibility-decomposition.md): independent Docker, Agent, CLI, Knowledge, and workspace-tool refactors.
+- [Local coding Agent decomposition plan](plans/2026-07-22-agent-loop-decomposition.md): facade-compatible loop, state, transition, context, and artifact separation.
 - [Strict 95-point plan](sisyphus_harness_strict_review_95_plan_2026-07-21.md):
   detailed source review and target score.
 - [Execution plan](execution-plan.md): model benchmark, evolution, evidence, and release sequence.
