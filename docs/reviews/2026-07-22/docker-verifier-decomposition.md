@@ -2,8 +2,10 @@
 
 - Review date: 2026-07-22
 - Base revision: `main@b28ffcbc57506701939d71d53d77cdbd93618c8d`
+- Implementation revision: `f7cb081e4819113fa69005de89e9cfae5862258b`
+- Merge revision: `a3a0121eb7b245828de9cca4001da7c568f30d85`
 - Review scope: Docker verifier responsibility decomposition
-- Delivery status: local implementation complete; PR and current-head CI pending
+- Delivery status: merged by PR #13 after CI run `29915544947` passed all five jobs
 
 ## Findings
 
@@ -55,7 +57,9 @@ Local evidence on the working revision:
 - offline source/wheel build, isolated `--no-index --no-deps` installation, and
   installed CLI startup outside the source tree passed.
 
-PR-head CI remains the final delivery gate and must be appended before merge.
+PR-head CI run `29915544947` passed `static-and-container`, core on Python
+3.11 and 3.14, evolution, and package-and-evidence against implementation head
+`f7cb081e4819113fa69005de89e9cfae5862258b` before squash merge.
 
 ## Residual Risk
 

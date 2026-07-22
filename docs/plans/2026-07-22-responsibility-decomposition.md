@@ -145,7 +145,7 @@ register either closes or precisely narrows `SH-ARCH-001`, `SH-ARCH-002`,
 
 | Slice | Status | Local evidence |
 | --- | --- | --- |
-| PR 1: Docker verifier runtime separation | Implementation complete; delivery pending | facade reduced from 952 to 311 class lines; 70 focused tests and 442 full-suite tests pass; branch coverage 90.3% |
+| PR 1: Docker verifier runtime separation | Merged by PR #13 at `a3a0121` | implementation `f7cb081`; CI run `29915544947` passed all five jobs; facade reduced from 952 to 311 class lines; 70 focused tests and 442 full-suite tests pass; branch coverage 90.3% |
 | PR 2: Agent loop separation | Pending | starts only from refreshed post-PR-1 `main` |
 | PR 3: CLI separation | Pending | starts only from refreshed post-PR-2 `main` |
 | PR 4: Knowledge separation | Pending | starts only from refreshed post-PR-3 `main` |

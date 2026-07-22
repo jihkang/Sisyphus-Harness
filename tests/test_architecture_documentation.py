@@ -188,6 +188,30 @@ class ArchitectureDocumentationTests(unittest.TestCase):
         self.assertIn("c0650c7b9d24fde857524107f559833470176d55", review)
         self.assertIn("29848008998", review)
 
+    def test_docker_decomposition_is_bound_to_merged_head_evidence(self) -> None:
+        debt = DEBT_REGISTER.read_text(encoding="utf-8")
+        plan = (
+            REPO_ROOT
+            / "docs"
+            / "plans"
+            / "2026-07-22-responsibility-decomposition.md"
+        ).read_text(encoding="utf-8")
+        review = (
+            REPO_ROOT
+            / "docs"
+            / "reviews"
+            / "2026-07-22"
+            / "docker-verifier-decomposition.md"
+        ).read_text(encoding="utf-8")
+
+        for marker in ("PR #13", "a3a0121", "29915544947"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, debt)
+                self.assertIn(marker, plan)
+                self.assertIn(marker, review)
+        self.assertIn("f7cb081e4819113fa69005de89e9cfae5862258b", review)
+        self.assertIn("a3a0121eb7b245828de9cca4001da7c568f30d85", review)
+
     def test_relative_documentation_links_resolve(self) -> None:
         for document in sorted((REPO_ROOT / "docs").rglob("*.md")):
             content = document.read_text(encoding="utf-8")
