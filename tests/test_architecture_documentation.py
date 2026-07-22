@@ -127,6 +127,23 @@ class ArchitectureDocumentationTests(unittest.TestCase):
             with self.subTest(cli_marker=marker):
                 self.assertIn(marker, cli)
 
+        self.assertIn("components/knowledge.md", content)
+        knowledge = (
+            ARCHITECTURE_INDEX.parent / "components" / "knowledge.md"
+        ).read_text(encoding="utf-8")
+        for marker in (
+            "## Responsibility",
+            "## Owned Authority",
+            "## Forbidden Authority",
+            "## Current Implementation",
+            "## Target Boundary",
+            "## Open Debt And Evidence",
+            "knowledge_read_context.py",
+            "infra/knowledge_integrity.py",
+        ):
+            with self.subTest(knowledge_marker=marker):
+                self.assertIn(marker, knowledge)
+
         verifier = (
             ARCHITECTURE_INDEX.parent / "components" / "verifier.md"
         ).read_text(encoding="utf-8")
