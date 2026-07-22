@@ -11,3 +11,5 @@ or merge evidence.
   runtime, host evidence, input staging, and publication responsibility review.
 - [Local coding Agent decomposition](agent-loop-decomposition.md): facade,
   loop, state, context, transition, and artifact responsibility review.
+- [CLI responsibility decomposition](cli-decomposition.md): compatibility
+  facade, parser, dispatcher, handler, IO, rendering, and parity review.

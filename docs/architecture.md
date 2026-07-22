@@ -78,9 +78,15 @@ Copy visible fixture workspaces into isolated Git repositories, keep hidden
 verifiers external, score rollouts, run GEPA offline, independently reevaluate
 candidates, and require a signed operator approval before activation.
 
-`cli.py`, `runtime.py`, and `worker.py`
+`cli.py`, `interfaces/cli/`, `runtime.py`, and `worker.py`
 
 Provide direct commands, trust-mode composition, and leased queue execution.
+`cli.py` is a compatibility facade that owns the public entry point and error
+boundary. `interfaces/cli/parser.py`, `dispatcher.py`, `handlers/`,
+`renderers.py`, `io.py`, and `policy_selection.py` separately own argparse,
+explicit command routing, use-case composition, deterministic JSON output,
+bounded inbound data, and effective policy selection. Handlers return one
+`CliResult` and do not print or absorb domain authority.
 The default `untrusted-contained` mode requires an operator-owned write
 allowlist and sends immutable candidate bundles through Docker verification;
 host verification requires explicit `trusted-in-process`. Workers load one

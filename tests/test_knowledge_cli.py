@@ -245,7 +245,8 @@ class KnowledgeCliTests(unittest.TestCase):
 
     def test_graph_initialization_database_failure_is_structured(self) -> None:
         with patch(
-            "sisyphus_harness.cli.SQLiteKnowledgeIndex.initialize",
+            "sisyphus_harness.interfaces.cli.handlers.knowledge."
+            "SQLiteKnowledgeIndex.initialize",
             side_effect=sqlite3.DatabaseError("invalid database"),
         ):
             code, output, error = _invoke(

@@ -75,7 +75,7 @@ flowchart LR
 
 | 논리 계층 | 모듈 | 책임 |
 | --- | --- | --- |
-| Interface | `cli.py` | 명령 파싱, 경로 해석, composition 호출, JSON 출력과 exit code |
+| Interface | `cli.py`, `interfaces/cli/` | 호환 entry point, parser, 명시적 command dispatch, 책임별 handler, bounded input, JSON 출력과 exit code |
 | Application orchestration | `agent.py`, `agent_loop.py`, `agent_state.py`, `agent_transitions.py`, `agent_artifacts.py`, `worker.py`, `benchmarks.py`, `evolution.py` | Agent 조립과 loop 전이, leased job 실행, 격리 평가, 후보 최적화 및 판정 |
 | Contracts and ports | `contracts/`, `ports/`, `config.py`, `protocol.py`, `compaction.py`, `models.py` | versioned wire dataclass, service port, TOML validation, model decision schema, deterministic context reduction, legacy type alias |
 | Runtime composition and adapters | `runtime.py`, `adapters/`, `provider.py`, `tools.py`, `verifier.py` | trust-mode 조립, bundle/Docker 또는 explicit in-process 검증, HTTP chat completion, allowlisted workspace 도구 |
@@ -85,12 +85,16 @@ flowchart LR
 
 ```mermaid
 flowchart TD
-    CLI["cli.py"] --> Runtime["runtime.py"]
-    CLI --> Worker["worker.py"]
-    CLI --> Bench["benchmarks.py"]
-    CLI --> Evolve["evolution.py"]
-    CLI --> Queue["queue.py"]
-    CLI --> Policy["policy.py"]
+    CLI["cli.py facade"] --> Parser["interfaces/cli/parser.py"]
+    CLI --> Dispatcher["interfaces/cli/dispatcher.py"]
+    CLI --> Renderer["interfaces/cli/renderers.py"]
+    Dispatcher --> Handlers["interfaces/cli/handlers/"]
+    Handlers --> Runtime["runtime.py"]
+    Handlers --> Worker["worker.py"]
+    Handlers --> Bench["benchmarks.py"]
+    Handlers --> Evolve["evolution.py"]
+    Handlers --> Queue["queue.py"]
+    Handlers --> Policy["policy.py"]
 
     Worker --> Runtime
     Worker --> Queue
@@ -138,7 +142,11 @@ flowchart TD
 
 ### 2.2 주요 조립 지점
 
-`cli._main()`은 command별 interface root이고 `runtime.py`가 direct/queued 실행의
+`cli._main()`은 parse, dispatch, 단일 JSON render만 수행하는 호환 facade다.
+`interfaces/cli/dispatcher.py`가 25개 command를 setup, queue, task, execution,
+policy, knowledge handler로 명시적으로 연결하며, 각 handler가 해당 use case의
+interface composition을 소유한다. Handler는 `CliResult`만 반환하고 stdout/stderr와
+exception-to-exit-2 정책은 facade가 소유한다. `runtime.py`는 direct/queued 실행의
 trust-mode composition root다. `untrusted-contained`는 operator가 지정한
 `execution.writable_paths`가 없으면 시작하지 않으며, `BundleVerificationAdapter`가
 매 검증 시점의 workspace를 content-addressed bundle로 만들고
@@ -886,7 +894,7 @@ args, config bytes, container image digest와 run artifacts를 별도로 묶어�
 
 | 변경하려는 동작 | 먼저 볼 코드 | 관련 회귀 테스트 |
 | --- | --- | --- |
-| CLI 명령 또는 JSON exit contract | `cli.py` | `tests/test_cli.py` |
+| CLI 명령 또는 JSON exit contract | `cli.py`, `interfaces/cli/` | `tests/test_cli.py`, `tests/test_cli_structure.py` |
 | trust mode, service 조립과 dependency direction | `runtime.py`, `adapters/in_process.py`, `ports/` | `tests/test_runtime.py`, `tests/test_in_process_adapters.py`, `tests/test_architecture_dependencies.py` |
 | task/criterion와 loop 종료 | `agent.py`, `agent_loop.py`, `agent_state.py`, `agent_transitions.py`, `agent_artifacts.py` | `tests/test_agent.py`, `tests/test_architecture_dependencies.py` |
 | model JSON schema | `protocol.py`, `provider.py` | `tests/test_protocol.py`, `tests/test_provider.py` |
