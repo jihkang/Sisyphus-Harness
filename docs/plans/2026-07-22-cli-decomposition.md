@@ -1,7 +1,7 @@
 # CLI Responsibility Decomposition Plan
 
 - Date: 2026-07-22
-- Status: Ready for delivery
+- Status: Complete
 - Base revision: `main@0fc4823`
 - Parent plan: [responsibility decomposition](2026-07-22-responsibility-decomposition.md)
 - Related debt: `SH-ARCH-001`, `SH-COMPAT-001`, `SH-TEST-001`
@@ -132,7 +132,7 @@ The entry point and command contracts do not migrate. The PR remains
 independently revertible to the single-module dispatcher, and no persisted
 artifact or database schema changes.
 
-## 8. Local Completion Evidence
+## 8. Completion Evidence
 
 - all 449 tests pass with three opt-in Docker tests skipped in the ordinary
   suite; total branch coverage is 90.4%;
@@ -149,5 +149,9 @@ artifact or database schema changes.
 - a source-rebuilt verifier image passes all three real-container boundary
   probes.
 
-Current-head PR CI, merge, refreshed `main`, and exact delivery identifiers
-remain pending and must be recorded separately.
+Implementation commit `7f17a459ba0c70dc100f2851a106263c6e57b18a`
+was delivered by PR #17. CI run `29919408040` passed `static-and-container`,
+core on Python 3.11 and 3.14, evolution, and package-and-evidence against that
+exact head. The PR squash-merged as
+`8601a8346798ef1cb204902bc265fd1a3c5ea32f`, after which local `main` was
+fetched and fast-forwarded to the same revision.

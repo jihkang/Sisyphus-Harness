@@ -147,6 +147,6 @@ register either closes or precisely narrows `SH-ARCH-001`, `SH-ARCH-002`,
 | --- | --- | --- |
 | PR 1: Docker verifier runtime separation | Merged by PR #13 at `a3a0121` | implementation `f7cb081`; CI run `29915544947` passed all five jobs; facade reduced from 952 to 311 class lines; 70 focused tests and 442 full-suite tests pass; branch coverage 90.3% |
 | PR 2: Agent loop separation | Merged by PR #15 at `59f178e` | implementation `d0d0c86`; CI run `29917555768` passed all five jobs; facade reduced from 738 to 119 class lines; 444 tests pass at 90.5% branch coverage |
-| PR 3: CLI separation | Ready for delivery from `main@0fc4823` | 43-line facade and five-line `_main()`; 25 command routes covered; 449 tests pass at 90.4% branch coverage; all local delivery gates and three real-Docker probes pass |
+| PR 3: CLI separation | Merged by PR #17 at `8601a83` | implementation `7f17a45`; CI run `29919408040` passed all five jobs; 43-line facade and five-line `_main()`; 25 command routes covered; 449 tests pass at 90.4% branch coverage |
 | PR 4: Knowledge separation | Pending | starts only from refreshed post-PR-3 `main` |
 | PR 5: Workspace tool separation | Pending | starts only from refreshed post-PR-4 `main` |

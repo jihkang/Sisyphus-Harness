@@ -2,9 +2,10 @@
 
 - Review date: 2026-07-22
 - Base revision: `main@0fc4823`
-- Reviewed state: working branch before delivery commit
+- Implementation revision: `7f17a459ba0c70dc100f2851a106263c6e57b18a`
+- Merge revision: `8601a8346798ef1cb204902bc265fd1a3c5ea32f`
 - Review scope: public CLI responsibility decomposition
-- Delivery status: local validation complete; PR/CI/merge pending
+- Delivery status: merged by PR #17 after CI run `29919408040` passed all five jobs
 
 ## Findings
 
@@ -61,7 +62,11 @@ Local validation evidence:
 - a source-rebuilt verifier image passed all three real-container boundary
   probes.
 
-Current-head CI, PR, and merge identifiers remain pending delivery evidence.
+PR-head CI run `29919408040` passed `static-and-container`, core on Python 3.11
+and 3.14, evolution, and package-and-evidence against implementation head
+`7f17a459ba0c70dc100f2851a106263c6e57b18a`. PR #17 then squash-merged as
+`8601a8346798ef1cb204902bc265fd1a3c5ea32f`, and local `main` was fetched and
+fast-forwarded to that exact revision before this delivery record.
 
 ## Residual Risk
 
