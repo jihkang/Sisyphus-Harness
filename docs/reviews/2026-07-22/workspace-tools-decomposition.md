@@ -2,10 +2,10 @@
 
 - Review date: 2026-07-22
 - Base revision: `main@5216b61`
-- Implementation revision: pending delivery commit
-- Merge revision: pending
+- Implementation revision: `03882014021d289b970cc56a87ae5b9ee539d93d`
+- Merge revision: `06cce47ef237e736f88639798d999f8933f9856d`
 - Review scope: `WorkspaceTools` argument, path, IO, query, and mutation split
-- Delivery status: local implementation complete; current-head CI and merge pending
+- Delivery status: merged by PR #21 after CI run `29923115539` passed all five jobs
 
 ## Findings
 
@@ -25,12 +25,12 @@ present in the reviewed change.
 | Component | Module lines | Owned responsibility |
 | --- | ---: | --- |
 | `WorkspaceTools` facade | 90 | composition, six-name dispatch, deadline, public error normalization |
-| argument decoder | 92 | strict scalar/list decoding and scope normalization |
-| public tool contracts | 17 | one error identity and one wire outcome |
-| bounded workspace IO | 103 | UTF-8/size/hash/truncation, atomic replace, fsync |
+| argument decoder | 91 | strict scalar/list decoding and scope normalization |
+| public tool contracts | 16 | one error identity and one wire outcome |
+| bounded workspace IO | 102 | UTF-8/size/hash/truncation, atomic replace, fsync |
 | mutation handlers | 129 | write, replace, delete use cases |
-| path policy | 139 | containment, protection, allowlist, ignore, symlink policy |
-| query handlers | 191 | Git inventory, list, read, literal search |
+| path policy | 138 | containment, protection, allowlist, ignore, symlink policy |
+| query handlers | 193 | Git inventory, list, read, literal search |
 
 No extracted module exceeds 220 lines. The facade has four methods, no
 operational loop, no Git invocation, and no hashing, temporary-file, mode, or
@@ -69,7 +69,11 @@ Local evidence so far:
 - a source-rebuilt verifier image passes all three real-container boundary
   probes.
 
-Current-head CI and merge evidence remain required before delivery is complete.
+PR-head CI run `29923115539` passed `static-and-container`, core on Python 3.11
+and 3.14, evolution, and package-and-evidence against implementation head
+`03882014021d289b970cc56a87ae5b9ee539d93d`. PR #21 then squash-merged as
+`06cce47ef237e736f88639798d999f8933f9856d`, and local `main` was fetched and
+fast-forwarded to that exact revision before this delivery record.
 
 ## Residual Risk
 

@@ -56,6 +56,7 @@ authority when a dated document describes an older revision.
 - [2026-07-22 CLI decomposition review](reviews/2026-07-22/cli-decomposition.md): facade, parser, dispatcher, handler, rendering, and parity review.
 - [2026-07-22 Knowledge decomposition review](reviews/2026-07-22/knowledge-decomposition.md): graph query/traversal and SQLite projection responsibility review.
 - [2026-07-22 Workspace tool decomposition review](reviews/2026-07-22/workspace-tools-decomposition.md): strict arguments, path policy, bounded IO, handlers, and parity review.
+- [2026-07-22 Responsibility decomposition final review](reviews/2026-07-22/responsibility-decomposition-final.md): five-slice closure and remaining large-class assessment.
 - [2026-07-18 architecture conformance](architecture-conformance-review-2026-07-18.md):
   historical code/document comparison.
 

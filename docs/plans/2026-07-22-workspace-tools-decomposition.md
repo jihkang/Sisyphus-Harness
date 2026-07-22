@@ -1,7 +1,7 @@
 # Workspace Tool Responsibility Decomposition Plan
 
 - Date: 2026-07-22
-- Status: In progress
+- Status: Complete
 - Base revision: `main@5216b61`
 - Parent plan: [responsibility decomposition](2026-07-22-responsibility-decomposition.md)
 - Related debt: `SH-ARCH-002`, `SH-IO-001`, `SH-TEST-001`
@@ -158,3 +158,17 @@ local `main` is refreshed, and the parent plan records that no targeted
 responsibility concentration remains. Residual `SH-IO-001`, `SH-ARCH-002`, and
 `SH-TEST-001` work must stay explicitly open unless their broader executable
 exit conditions are separately met.
+
+## 9. Completion Evidence
+
+Implementation commit `03882014021d289b970cc56a87ae5b9ee539d93d` was
+delivered by PR #21. CI run `29923115539` passed `static-and-container`, core
+on Python 3.11 and 3.14, evolution, and package-and-evidence against that exact
+head. The PR squash-merged as
+`06cce47ef237e736f88639798d999f8933f9856d`, after which local `main` was
+fetched and fast-forwarded to the same revision.
+
+All 456 tests pass with three opt-in Docker skips and 90.6% branch coverage.
+The 90-line facade and six collaborators retain exact canonical base/current
+tool behavior, and the separate dated review records the remaining IO race
+boundary without overstating conformance.

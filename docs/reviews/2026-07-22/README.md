@@ -19,3 +19,5 @@ or merge evidence.
 - [Workspace tool responsibility decomposition](workspace-tools-decomposition.md):
   facade, strict arguments, path policy, bounded IO, query, mutation, and parity
   review.
+- [Responsibility decomposition final review](responsibility-decomposition-final.md):
+  five-slice closure, whole-codebase class scan, and residual debt assessment.

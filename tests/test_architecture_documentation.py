@@ -338,6 +338,41 @@ class ArchitectureDocumentationTests(unittest.TestCase):
         self.assertIn("40e90a450589d2546a697b9296e0339db5e0e948", review)
         self.assertIn("ea9d556cf934cb4578b4d1fa057e7a98fdf89a49", review)
 
+    def test_workspace_tool_decomposition_is_bound_to_merged_head_evidence(
+        self,
+    ) -> None:
+        debt = DEBT_REGISTER.read_text(encoding="utf-8")
+        parent_plan = (
+            REPO_ROOT
+            / "docs"
+            / "plans"
+            / "2026-07-22-responsibility-decomposition.md"
+        ).read_text(encoding="utf-8")
+        plan = (
+            REPO_ROOT
+            / "docs"
+            / "plans"
+            / "2026-07-22-workspace-tools-decomposition.md"
+        ).read_text(encoding="utf-8")
+        review = (
+            REPO_ROOT
+            / "docs"
+            / "reviews"
+            / "2026-07-22"
+            / "workspace-tools-decomposition.md"
+        ).read_text(encoding="utf-8")
+
+        for marker in ("PR #21", "06cce47", "29923115539"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, debt)
+                self.assertIn(marker, parent_plan)
+                self.assertIn(marker, plan)
+                self.assertIn(marker, review)
+        self.assertIn("- Status: Complete", parent_plan)
+        self.assertIn("- Status: Complete", plan)
+        self.assertIn("03882014021d289b970cc56a87ae5b9ee539d93d", review)
+        self.assertIn("06cce47ef237e736f88639798d999f8933f9856d", review)
+
     def test_relative_documentation_links_resolve(self) -> None:
         for document in sorted((REPO_ROOT / "docs").rglob("*.md")):
             content = document.read_text(encoding="utf-8")
