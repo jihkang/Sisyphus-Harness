@@ -22,13 +22,23 @@ read signing keys, or access the Control database.
 
 ## Current Implementation
 
-The default transport in `src/sisyphus_harness/adapters/docker_verifier.py`
-validates and materializes an exact workspace bundle on the host. It applies no
-network, a read-only root filesystem, dropped capabilities, non-root execution,
-resource limits, and bounded output. Each `CommandSpec` is PID 1 in a fresh
-container with only `/workspace` read-write and optional `/verifier-assets`
-read-only. Request, bundle CAS, evidence staging, authoritative artifacts,
-Control state, and signing keys are not mounted.
+The default `VerificationServicePort` facade is
+`src/sisyphus_harness/adapters/docker_verifier.py`. Exact bundle staging lives
+in `src/sisyphus_harness/adapters/docker_bundle_view.py`, sandbox construction
+and bounded process lifecycle live in
+`src/sisyphus_harness/adapters/docker_runtime.py`, host command/receipt assembly
+lives in `src/sisyphus_harness/adapters/docker_host_verification.py`, and
+collision-safe publication lives in
+`src/sisyphus_harness/adapters/docker_evidence.py`. An AST regression test prevents process-capture
+responsibilities from moving back into the facade.
+
+Together these collaborators validate and materialize an exact workspace
+bundle on the host. They apply no network, a read-only root filesystem, dropped
+capabilities, non-root execution, resource limits, and bounded output. Each
+`CommandSpec` is PID 1 in a fresh container with only `/workspace` read-write
+and optional `/verifier-assets` read-only. Request, bundle CAS, evidence
+staging, authoritative artifacts, Control state, and signing keys are not
+mounted.
 
 The host freezes operator files in `FilesystemVerifierAssetBundleStore`, binds
 the resulting `VerifierAssetBundleRef` into `VerificationProfile.v2`, resolves

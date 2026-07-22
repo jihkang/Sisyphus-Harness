@@ -137,6 +137,55 @@ class ArchitectureDependencyTests(unittest.TestCase):
             imported.intersection({"database", "infra", "queue", "worker"})
         )
 
+    def test_docker_verifier_facade_keeps_runtime_responsibilities_extracted(
+        self,
+    ) -> None:
+        facade_path = PACKAGE_ROOT / "adapters" / "docker_verifier.py"
+        tree = ast.parse(
+            facade_path.read_text(encoding="utf-8"),
+            filename=str(facade_path),
+        )
+        facade = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "DockerVerifierTransport"
+        )
+        self.assertLessEqual(facade.end_lineno - facade.lineno + 1, 325)
+        method_names = {
+            node.name for node in facade.body if isinstance(node, ast.FunctionDef)
+        }
+        self.assertFalse(
+            method_names.intersection(
+                {"_collect_output_with_selector", "_collect_output_with_threads"}
+            )
+        )
+
+        direct_imports = {
+            alias.name
+            for node in tree.body
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        self.assertFalse(
+            direct_imports.intersection(
+                {"hashlib", "selectors", "signal", "stat", "threading"}
+            )
+        )
+
+        collaborators = {
+            "docker_bundle_view.py": "prepare_bundle_view",
+            "docker_evidence.py": "DockerEvidencePublisher",
+            "docker_host_verification.py": "DockerHostVerifier",
+            "docker_runtime.py": "DockerRuntime",
+        }
+        for filename, symbol in collaborators.items():
+            with self.subTest(filename=filename):
+                source = (PACKAGE_ROOT / "adapters" / filename).read_text(
+                    encoding="utf-8"
+                )
+                self.assertIn(symbol, source)
+
 
 def _imports(path: Path) -> list[ast.Import | ast.ImportFrom]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

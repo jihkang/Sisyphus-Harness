@@ -7,3 +7,5 @@ or merge evidence.
 
 - [Verifier command isolation](verifier-command-isolation.md): post-implementation
   authority, failure-path, compatibility, and maintainability review.
+- [Docker verifier decomposition](docker-verifier-decomposition.md): facade,
+  runtime, host evidence, input staging, and publication responsibility review.

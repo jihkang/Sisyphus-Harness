@@ -32,20 +32,24 @@ Run the local coding loop. The provider must return exactly one JSON decision.
 The harness controls observation, reflection, compaction, tool execution,
 stagnation detection, budgets, and final verification.
 
-`verifier.py`, `services/verifier.py`, and `adapters/docker_verifier.py`
+`verifier.py`, `services/verifier.py`, and `adapters/docker_*.py`
 
 Executes operator-defined argv without a shell. It records full stdout and
 stderr, executable identity, timeout and exit state, and before/after workspace
 hashes. A verifier that mutates the workspace cannot produce a passing receipt.
 The compatibility bundle service verifies an immutable workspace reference and
-an exact content-addressed verifier asset tree. The default Docker transport
-resolves and rechecks an immutable image ID, materializes the workspace and
-assets on the host, and runs each `CommandSpec` as PID 1 in a separate no-network,
+an exact content-addressed verifier asset tree. `adapters/docker_verifier.py` is
+the public facade; `adapters/docker_bundle_view.py`, `adapters/docker_runtime.py`,
+`adapters/docker_host_verification.py`, and `adapters/docker_evidence.py` own exact input staging,
+container process mechanics, host evidence assembly, and publication
+respectively. The default Docker path resolves and rechecks an immutable image
+ID and runs each `CommandSpec` as PID 1 in a separate no-network,
 resource-bounded container. Candidate code receives only the workspace
 read-write and exact assets read-only; request, bundle CAS, and evidence paths
-are absent. The host bounds output, measures workspace and asset state, constructs
-the v3 receipt, validates every source/result binding, and atomically publishes
-the run. The asset mount protects integrity, not secrecy from candidate code.
+are absent. The host bounds output, measures workspace and asset state,
+constructs the v3 receipt, validates every source/result binding, and atomically
+publishes the run. The asset mount protects integrity, not secrecy from
+candidate code.
 
 `contracts/control/`, `contracts/evidence_contract.py`, `evidence_contract.py`,
 `services/evidence_contract.py`, `services/control_outcomes.py`, and
