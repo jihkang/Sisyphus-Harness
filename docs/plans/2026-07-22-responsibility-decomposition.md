@@ -1,7 +1,7 @@
 # Responsibility Decomposition Plan
 
 - Date: 2026-07-22
-- Status: In progress
+- Status: Complete
 - Scope: remaining oversized runtime classes and modules
 - Related debt: `SH-ARCH-001`, `SH-ARCH-002`, `SH-IO-001`, `SH-TEST-001`
 
@@ -149,4 +149,9 @@ register either closes or precisely narrows `SH-ARCH-001`, `SH-ARCH-002`,
 | PR 2: Agent loop separation | Merged by PR #15 at `59f178e` | implementation `d0d0c86`; CI run `29917555768` passed all five jobs; facade reduced from 738 to 119 class lines; 444 tests pass at 90.5% branch coverage |
 | PR 3: CLI separation | Merged by PR #17 at `8601a83` | implementation `7f17a45`; CI run `29919408040` passed all five jobs; 43-line facade and five-line `_main()`; 25 command routes covered; 449 tests pass at 90.4% branch coverage |
 | PR 4: Knowledge separation | Merged by PR #19 at `ea9d556` | implementation `40e90a4`; CI run `29921307245` passed all five jobs; graph and SQLite facades are 85 and 64 lines; 452 tests pass at 90.5% branch coverage with byte-identical canonical output |
-| PR 5: Workspace tool separation | Implemented locally; delivery pending | 90-line facade; six collaborators at or below 191 lines; 48 focused and 456 full-suite tests pass; branch coverage 90.6%; base/current canonical tool projection is byte-identical |
+| PR 5: Workspace tool separation | Merged by PR #21 at `06cce47` | implementation `0388201`; CI run `29923115539` passed all five jobs; 90-line facade and six collaborators at or below 193 lines; 456 tests pass at 90.6% branch coverage with byte-identical canonical output |
+
+The [final responsibility review](../reviews/2026-07-22/responsibility-decomposition-final.md)
+finds no remaining confirmed god class in the five targeted surfaces. The
+broader transport, IO, test, evolution, evidence, and authority debts remain
+open under their existing executable exit conditions.
