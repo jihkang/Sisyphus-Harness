@@ -20,6 +20,7 @@ from sisyphus_harness.adapters.docker_verifier import (
     DockerVerifierTransport,
     _CommandCapture,
 )
+from sisyphus_harness.adapters.docker_runtime import DockerRuntime
 from sisyphus_harness.contracts.artifacts import ArtifactRef
 from sisyphus_harness.contracts.verification import (
     CommandResult,
@@ -699,7 +700,7 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
         cleanup_calls: list[tuple[str, ...]] = []
 
         def command(
-            _: DockerVerifierTransport,
+            _: DockerRuntime,
             __: CommandSpec,
             *,
             workspace: Path,
@@ -724,7 +725,7 @@ class DockerVerifierTransportEdgeTests(unittest.TestCase):
 
         started = time.monotonic()
         with patch.object(
-            DockerVerifierTransport,
+            DockerRuntime,
             "command",
             autospec=True,
             side_effect=command,

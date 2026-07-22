@@ -52,6 +52,7 @@ authority when a dated document describes an older revision.
   asset/image binding, adversarial tests, and confidentiality limit.
 - [2026-07-21 code review](code-review-2026-07-21.md): prior merged-scope review.
 - [2026-07-22 verifier command isolation review](reviews/2026-07-22/verifier-command-isolation.md): post-implementation authority and failure-path review.
+- [2026-07-22 Docker verifier decomposition review](reviews/2026-07-22/docker-verifier-decomposition.md): responsibility split and behavior-parity evidence.
 - [2026-07-18 architecture conformance](architecture-conformance-review-2026-07-18.md):
   historical code/document comparison.
 
@@ -59,6 +60,7 @@ authority when a dated document describes an older revision.
 
 - [Implementation plans](plans/): current architecture and security changes with
   explicit invariants, migration steps, and completion gates.
+- [Responsibility decomposition plan](plans/2026-07-22-responsibility-decomposition.md): independent Docker, Agent, CLI, Knowledge, and workspace-tool refactors.
 - [Strict 95-point plan](sisyphus_harness_strict_review_95_plan_2026-07-21.md):
   detailed source review and target score.
 - [Execution plan](execution-plan.md): model benchmark, evolution, evidence, and release sequence.
