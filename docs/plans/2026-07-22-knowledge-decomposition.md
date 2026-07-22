@@ -1,7 +1,7 @@
 # Knowledge Responsibility Decomposition Plan
 
 - Date: 2026-07-22
-- Status: Ready for delivery
+- Status: Complete
 - Base revision: `main@8f76a74`
 - Parent plan: [responsibility decomposition](2026-07-22-responsibility-decomposition.md)
 - Related debt: `SH-ARCH-002`, `SH-TEST-001`
@@ -119,7 +119,7 @@ current-head CI, squash merge, refreshed `main`, and merge-evidence closure.
 No schema, wire contract, or artifact migration occurs. The PR is independently
 revertible to the two original classes without data conversion.
 
-## 8. Local Completion Evidence
+## 8. Completion Evidence
 
 - all 452 tests pass with three opt-in Docker tests skipped in the ordinary
   suite; total branch coverage is 90.5%;
@@ -140,5 +140,9 @@ revertible to the two original classes without data conversion.
 - a source-rebuilt verifier image passes all three real-container boundary
   probes.
 
-Current-head PR CI, merge, refreshed `main`, and exact delivery identifiers
-remain pending and must be recorded separately.
+Implementation commit `40e90a450589d2546a697b9296e0339db5e0e948`
+was delivered by PR #19. CI run `29921307245` passed `static-and-container`,
+core on Python 3.11 and 3.14, evolution, and package-and-evidence against that
+exact head. The PR squash-merged as
+`ea9d556cf934cb4578b4d1fa057e7a98fdf89a49`, after which local `main` was
+fetched and fast-forwarded to the same revision.
