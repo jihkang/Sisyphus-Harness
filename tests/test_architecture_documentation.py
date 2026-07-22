@@ -298,6 +298,31 @@ class ArchitectureDocumentationTests(unittest.TestCase):
         self.assertIn("7f17a459ba0c70dc100f2851a106263c6e57b18a", review)
         self.assertIn("8601a8346798ef1cb204902bc265fd1a3c5ea32f", review)
 
+    def test_knowledge_decomposition_is_bound_to_merged_head_evidence(self) -> None:
+        debt = DEBT_REGISTER.read_text(encoding="utf-8")
+        plan = (
+            REPO_ROOT
+            / "docs"
+            / "plans"
+            / "2026-07-22-knowledge-decomposition.md"
+        ).read_text(encoding="utf-8")
+        review = (
+            REPO_ROOT
+            / "docs"
+            / "reviews"
+            / "2026-07-22"
+            / "knowledge-decomposition.md"
+        ).read_text(encoding="utf-8")
+
+        for marker in ("PR #19", "ea9d556", "29921307245"):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, debt)
+                self.assertIn(marker, plan)
+                self.assertIn(marker, review)
+        self.assertIn("- Status: Complete", plan)
+        self.assertIn("40e90a450589d2546a697b9296e0339db5e0e948", review)
+        self.assertIn("ea9d556cf934cb4578b4d1fa057e7a98fdf89a49", review)
+
     def test_relative_documentation_links_resolve(self) -> None:
         for document in sorted((REPO_ROOT / "docs").rglob("*.md")):
             content = document.read_text(encoding="utf-8")

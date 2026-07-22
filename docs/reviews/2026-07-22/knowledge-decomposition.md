@@ -2,9 +2,10 @@
 
 - Review date: 2026-07-22
 - Base revision: `main@8f76a74`
-- Reviewed state: working branch before delivery commit
+- Implementation revision: `40e90a450589d2546a697b9296e0339db5e0e948`
+- Merge revision: `ea9d556cf934cb4578b4d1fa057e7a98fdf89a49`
 - Review scope: `KnowledgeGraph` and `SQLiteKnowledgeIndex` responsibility split
-- Delivery status: local validation complete; PR/CI/merge pending
+- Delivery status: merged by PR #19 after CI run `29921307245` passed all five jobs
 
 ## Findings
 
@@ -72,7 +73,11 @@ Local evidence so far:
 - a source-rebuilt verifier image passed all three real-container boundary
   probes.
 
-Current-head CI, PR, and merge identifiers remain pending delivery evidence.
+PR-head CI run `29921307245` passed `static-and-container`, core on Python 3.11
+and 3.14, evolution, and package-and-evidence against implementation head
+`40e90a450589d2546a697b9296e0339db5e0e948`. PR #19 then squash-merged as
+`ea9d556cf934cb4578b4d1fa057e7a98fdf89a49`, and local `main` was fetched and
+fast-forwarded to that exact revision before this delivery record.
 
 ## Residual Risk
 
