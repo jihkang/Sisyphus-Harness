@@ -15,6 +15,7 @@ from unittest.mock import patch
 from sisyphus_harness.authority import (
     authority_database_path,
     evolution_artifact_root,
+    policy_root,
 )
 from sisyphus_harness.cli import main
 from sisyphus_harness.config import CadencePolicy
@@ -400,7 +401,8 @@ class CliTests(unittest.TestCase):
         )
 
         with patch(
-            "sisyphus_harness.cli.OpenAICompatibleProvider",
+            "sisyphus_harness.interfaces.cli.handlers.execution."
+            "OpenAICompatibleProvider",
             return_value=provider,
         ):
             code, result, error = invoke(
@@ -489,7 +491,8 @@ class CliTests(unittest.TestCase):
         )
 
         with patch(
-            "sisyphus_harness.cli.OpenAICompatibleProvider",
+            "sisyphus_harness.interfaces.cli.handlers.execution."
+            "OpenAICompatibleProvider",
             return_value=provider,
         ):
             code, result, _ = invoke(
@@ -542,7 +545,10 @@ class CliTests(unittest.TestCase):
             def run(self, **kwargs):
                 return FakeResult()
 
-        with patch("sisyphus_harness.cli.EvolutionRunner", FakeRunner):
+        with patch(
+            "sisyphus_harness.interfaces.cli.handlers.execution.EvolutionRunner",
+            FakeRunner,
+        ):
             code, result, _ = invoke(
                 [
                     "evolve",
@@ -610,10 +616,14 @@ class CliTests(unittest.TestCase):
         self.write_full_config()
         with (
             patch(
-                "sisyphus_harness.cli.load_benchmark_dataset",
+                "sisyphus_harness.interfaces.cli.handlers.execution."
+                "load_benchmark_dataset",
                 side_effect=[[{"id": "train"}], [{"id": "holdout"}]],
             ),
-            patch("sisyphus_harness.cli.CodingAgentBenchmarkEvaluator") as evaluator,
+            patch(
+                "sisyphus_harness.interfaces.cli.handlers.execution."
+                "CodingAgentBenchmarkEvaluator"
+            ) as evaluator,
         ):
             code, _, error = invoke(
                 [
@@ -632,6 +642,23 @@ class CliTests(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("unsafe", error["error"])
         evaluator.assert_not_called()
+
+    def test_policy_rejects_unsafe_id_before_registry_creation(self) -> None:
+        registry_root = policy_root(self.repository)
+
+        code, _, error = invoke(
+            [
+                "policy-approve",
+                "--repo",
+                str(self.repository),
+                "--evolution-id",
+                "../escape",
+            ]
+        )
+
+        self.assertEqual(code, 2)
+        self.assertIn("unsafe", error["error"])
+        self.assertFalse(registry_root.exists())
 
     def test_policy_show_without_active_and_missing_active_selection(self) -> None:
         self.write_full_config()
@@ -703,7 +730,10 @@ class CliTests(unittest.TestCase):
                     updated_at="now",
                 )
 
-        with patch("sisyphus_harness.cli.CodingWorker", FakeWorker):
+        with patch(
+            "sisyphus_harness.interfaces.cli.handlers.task.CodingWorker",
+            FakeWorker,
+        ):
             code, completed, _ = invoke(
                 [
                     "worker-once",
@@ -781,7 +811,8 @@ class CliTests(unittest.TestCase):
                 return PublishedOutcome()
 
         with patch(
-            "sisyphus_harness.cli.build_control_task_outcome_service",
+            "sisyphus_harness.interfaces.cli.handlers.task."
+            "build_control_task_outcome_service",
             return_value=FakeControlService(),
         ):
             code, outcome, error = invoke(

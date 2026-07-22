@@ -26,6 +26,8 @@ boundary is not evidence of process, host, or identity isolation.
 
 ## Cross-Cutting Views
 
+- [CLI interface boundary](components/cli.md) records the compatibility entry
+  point, parser, dispatcher, handlers, rendering, and forbidden authority.
 - [Trust and artifact boundaries](trust-and-artifacts.md) records who may create,
   read, and publish each authoritative artifact and which digest bindings are
   implemented or missing.

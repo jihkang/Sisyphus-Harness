@@ -53,6 +53,7 @@ authority when a dated document describes an older revision.
 - [2026-07-21 code review](code-review-2026-07-21.md): prior merged-scope review.
 - [2026-07-22 verifier command isolation review](reviews/2026-07-22/verifier-command-isolation.md): post-implementation authority and failure-path review.
 - [2026-07-22 Docker verifier decomposition review](reviews/2026-07-22/docker-verifier-decomposition.md): responsibility split and behavior-parity evidence.
+- [2026-07-22 CLI decomposition review](reviews/2026-07-22/cli-decomposition.md): facade, parser, dispatcher, handler, rendering, and parity review.
 - [2026-07-18 architecture conformance](architecture-conformance-review-2026-07-18.md):
   historical code/document comparison.
 
@@ -62,6 +63,7 @@ authority when a dated document describes an older revision.
   explicit invariants, migration steps, and completion gates.
 - [Responsibility decomposition plan](plans/2026-07-22-responsibility-decomposition.md): independent Docker, Agent, CLI, Knowledge, and workspace-tool refactors.
 - [Local coding Agent decomposition plan](plans/2026-07-22-agent-loop-decomposition.md): facade-compatible loop, state, transition, context, and artifact separation.
+- [CLI decomposition plan](plans/2026-07-22-cli-decomposition.md): facade-compatible parser, dispatcher, handler, IO, and rendering separation.
 - [Strict 95-point plan](sisyphus_harness_strict_review_95_plan_2026-07-21.md):
   detailed source review and target score.
 - [Execution plan](execution-plan.md): model benchmark, evolution, evidence, and release sequence.

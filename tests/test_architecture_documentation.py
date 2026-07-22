@@ -22,7 +22,9 @@ class ArchitectureDocumentationTests(unittest.TestCase):
         content = ARCHITECTURE_DOC.read_text(encoding="utf-8")
 
         for required in (
-            'CLI["cli.py"] --> Runtime["runtime.py"]',
+            'CLI --> Dispatcher["interfaces/cli/dispatcher.py"]',
+            'Dispatcher --> Handlers["interfaces/cli/handlers/"]',
+            'Handlers --> Runtime["runtime.py"]',
             'Runtime --> BundleAdapter["adapters/bundle_verification.py"]',
             'Agent --> AgentLoop["agent_loop.py"]',
             'AgentTransitions --> VerificationPort["VerificationPort"]',
@@ -108,6 +110,22 @@ class ArchitectureDocumentationTests(unittest.TestCase):
             with self.subTest(target=target):
                 self.assertIn(target, content)
                 self.assertTrue((ARCHITECTURE_INDEX.parent / target).is_file())
+
+        self.assertIn("components/cli.md", content)
+        cli = (
+            ARCHITECTURE_INDEX.parent / "components" / "cli.md"
+        ).read_text(encoding="utf-8")
+        for marker in (
+            "## Responsibility",
+            "## Owned Authority",
+            "## Forbidden Authority",
+            "## Current Implementation",
+            "## Target Boundary",
+            "## Open Debt And Evidence",
+            "interfaces/cli/dispatcher.py",
+        ):
+            with self.subTest(cli_marker=marker):
+                self.assertIn(marker, cli)
 
         verifier = (
             ARCHITECTURE_INDEX.parent / "components" / "verifier.md"

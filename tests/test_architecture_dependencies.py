@@ -263,6 +263,68 @@ class ArchitectureDependencyTests(unittest.TestCase):
                             325,
                         )
 
+    def test_cli_facade_keeps_command_responsibilities_extracted(self) -> None:
+        facade_path = PACKAGE_ROOT / "cli.py"
+        source = facade_path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(facade_path))
+        self.assertLessEqual(len(source.splitlines()), 60)
+        main_delegate = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.FunctionDef) and node.name == "_main"
+        )
+        self.assertLessEqual(
+            main_delegate.end_lineno - main_delegate.lineno + 1,
+            10,
+        )
+        self.assertFalse(
+            any(
+                isinstance(node, (ast.For, ast.If, ast.Match, ast.While))
+                for node in ast.walk(main_delegate)
+            )
+        )
+
+        direct_imports = {
+            imported
+            for node in tree.body
+            for imported in _absolute_import_roots(node)
+        }
+        self.assertFalse(
+            direct_imports.intersection(
+                {
+                    "benchmarks",
+                    "evolution",
+                    "knowledge_graph",
+                    "policy",
+                    "provider",
+                    "queue",
+                    "runtime",
+                    "worker",
+                }
+            )
+        )
+        relative_modules = {
+            node.module
+            for node in tree.body
+            if isinstance(node, ast.ImportFrom) and node.level == 1
+        }
+        self.assertTrue(
+            {
+                "interfaces.cli.dispatcher",
+                "interfaces.cli.parser",
+                "interfaces.cli.renderers",
+            }.issubset(relative_modules)
+        )
+
+        cli_root = PACKAGE_ROOT / "interfaces" / "cli"
+        for path in sorted(cli_root.rglob("*.py")):
+            with self.subTest(path=path.relative_to(PACKAGE_ROOT)):
+                component_source = path.read_text(encoding="utf-8")
+                self.assertLessEqual(len(component_source.splitlines()), 220)
+                if path.parent.name == "handlers":
+                    self.assertNotIn("render_json(", component_source)
+                    self.assertNotIn("print(", component_source)
+
 
 def _imports(path: Path) -> list[ast.Import | ast.ImportFrom]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
