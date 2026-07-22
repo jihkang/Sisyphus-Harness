@@ -391,6 +391,58 @@ class ArchitectureDependencyTests(unittest.TestCase):
                 if path.parent == PACKAGE_ROOT:
                     self.assertNotIn("import sqlite3", source)
 
+    def test_workspace_tools_facade_keeps_operational_responsibilities_extracted(
+        self,
+    ) -> None:
+        facade_path = PACKAGE_ROOT / "tools.py"
+        source = facade_path.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(facade_path))
+        self.assertLessEqual(len(source.splitlines()), 100)
+        facade = next(
+            node
+            for node in tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "WorkspaceTools"
+        )
+        execute = next(
+            node
+            for node in facade.body
+            if isinstance(node, ast.FunctionDef) and node.name == "execute"
+        )
+        self.assertFalse(
+            any(isinstance(node, (ast.For, ast.While)) for node in ast.walk(execute))
+        )
+        self.assertNotIn("subprocess.run", source)
+        for forbidden in ("hashlib", "os", "stat", "tempfile"):
+            with self.subTest(forbidden_import=forbidden):
+                self.assertNotIn(forbidden, _absolute_import_roots_from_tree(tree))
+
+        relative_modules = {
+            node.module
+            for node in tree.body
+            if isinstance(node, ast.ImportFrom) and node.level == 1
+        }
+        self.assertTrue(
+            {
+                "workspace_tool_contracts",
+                "workspace_tool_io",
+                "workspace_tool_mutations",
+                "workspace_tool_paths",
+                "workspace_tool_queries",
+            }.issubset(relative_modules)
+        )
+
+        components = sorted(PACKAGE_ROOT.glob("workspace_tool_*.py"))
+        self.assertEqual(len(components), 6)
+        for path in components:
+            with self.subTest(component=path.name):
+                component_source = path.read_text(encoding="utf-8")
+                self.assertLessEqual(len(component_source.splitlines()), 220)
+        arguments = (PACKAGE_ROOT / "workspace_tool_arguments.py").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("import os", arguments)
+        self.assertNotIn("import subprocess", arguments)
+
 
 def _imports(path: Path) -> list[ast.Import | ast.ImportFrom]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
@@ -407,6 +459,14 @@ def _absolute_import_roots(node: ast.stmt) -> set[str]:
     if isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
         return {node.module.split(".", 1)[0]}
     return set()
+
+
+def _absolute_import_roots_from_tree(tree: ast.Module) -> set[str]:
+    return {
+        imported
+        for node in tree.body
+        for imported in _absolute_import_roots(node)
+    }
 
 
 if __name__ == "__main__":

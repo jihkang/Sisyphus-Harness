@@ -31,6 +31,9 @@ boundary is not evidence of process, host, or identity isolation.
 - [Knowledge decision-support boundary](components/knowledge.md) records the
   candidate-only graph domain, SQLite projection, revision fence, and forbidden
   task authority.
+- [Workspace tool boundary](components/workspace-tools.md) records strict tool
+  decoding, repository path/write policy, bounded IO, and forbidden lifecycle
+  authority.
 - [Trust and artifact boundaries](trust-and-artifacts.md) records who may create,
   read, and publish each authoritative artifact and which digest bindings are
   implemented or missing.
@@ -64,6 +67,7 @@ has current-revision test and delivery evidence.
 | Verifier | `GREEN` Asset/image integrity and host-owned evidence conform at `5d872bc`; confidentiality unclaimed | closed `SH-VERIFY-001`/`SH-VERIFY-002`; open `SH-ORACLE-001` |
 | Evolve | `AMBER` Partial | `SH-EVOLVE-001`, `SH-BENCH-001`, `SH-EVIDENCE-001` |
 | Control | `AMBER` Partial | `SH-CTRL-001`, `SH-GRAPH-001`, `SH-TRUST-001` |
+| Workspace tools | `AMBER` Partial | `SH-IO-001`, `SH-ARCH-002` |
 
 The token meanings and promotion rules are defined only in the
 [canonical conformance model](../status/conformance-model.md).

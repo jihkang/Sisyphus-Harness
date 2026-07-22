@@ -38,8 +38,9 @@ follows:
 
 Composition in `src/sisyphus_harness/runtime.py` selects the contained bundle
 verifier by default and the explicit trusted in-process adapter only when
-configured. `src/sisyphus_harness/tools.py` applies the positive write
-allowlist and path checks. `src/sisyphus_harness/compaction.py` owns
+configured. The [workspace tool boundary](workspace-tools.md) applies strict
+arguments, the positive write allowlist, path checks, and bounded IO behind the
+`src/sisyphus_harness/tools.py` facade. `src/sisyphus_harness/compaction.py` owns
 deterministic context reduction.
 
 Queued runs are initiated by `src/sisyphus_harness/worker.py`. The Worker

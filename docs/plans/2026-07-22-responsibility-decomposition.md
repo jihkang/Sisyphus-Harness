@@ -149,4 +149,4 @@ register either closes or precisely narrows `SH-ARCH-001`, `SH-ARCH-002`,
 | PR 2: Agent loop separation | Merged by PR #15 at `59f178e` | implementation `d0d0c86`; CI run `29917555768` passed all five jobs; facade reduced from 738 to 119 class lines; 444 tests pass at 90.5% branch coverage |
 | PR 3: CLI separation | Merged by PR #17 at `8601a83` | implementation `7f17a45`; CI run `29919408040` passed all five jobs; 43-line facade and five-line `_main()`; 25 command routes covered; 449 tests pass at 90.4% branch coverage |
 | PR 4: Knowledge separation | Merged by PR #19 at `ea9d556` | implementation `40e90a4`; CI run `29921307245` passed all five jobs; graph and SQLite facades are 85 and 64 lines; 452 tests pass at 90.5% branch coverage with byte-identical canonical output |
-| PR 5: Workspace tool separation | Pending | starts only from refreshed post-PR-4 `main` |
+| PR 5: Workspace tool separation | Implemented locally; delivery pending | 90-line facade; six collaborators at or below 191 lines; 48 focused and 456 full-suite tests pass; branch coverage 90.6%; base/current canonical tool projection is byte-identical |

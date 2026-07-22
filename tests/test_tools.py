@@ -558,14 +558,17 @@ class WorkspaceToolsTests(unittest.TestCase):
             stdout=b"",
             stderr=b"repository unavailable",
         )
-        with patch("sisyphus_harness.tools.subprocess.run", return_value=failed):
+        with patch(
+            "sisyphus_harness.workspace_tool_queries.subprocess.run",
+            return_value=failed,
+        ):
             with self.assertRaisesRegex(ToolError, "repository unavailable"):
                 self.tools.execute("list_files", {})
             with self.assertRaisesRegex(ToolError, "repository unavailable"):
                 self.tools.execute("search_text", {"query": "baseline"})
 
         with patch(
-            "sisyphus_harness.tools.subprocess.run",
+            "sisyphus_harness.workspace_tool_queries.subprocess.run",
             side_effect=subprocess.TimeoutExpired(("git", "ls-files"), 15),
         ):
             with self.assertRaisesRegex(ToolError, "operation timed out"):

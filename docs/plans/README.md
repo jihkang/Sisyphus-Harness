@@ -12,3 +12,4 @@ Current plans:
 - [Local coding Agent loop decomposition](2026-07-22-agent-loop-decomposition.md)
 - [CLI responsibility decomposition](2026-07-22-cli-decomposition.md)
 - [Knowledge responsibility decomposition](2026-07-22-knowledge-decomposition.md)
+- [Workspace tool responsibility decomposition](2026-07-22-workspace-tools-decomposition.md)
