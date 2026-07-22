@@ -1,7 +1,7 @@
 # Local Coding Agent Loop Decomposition Plan
 
 - Date: 2026-07-22
-- Status: Implementation complete; delivery pending
+- Status: Complete
 - Base revision: `main@fbe3adf`
 - Parent plan: [responsibility decomposition](2026-07-22-responsibility-decomposition.md)
 - Related debt: `SH-ARCH-002`, `SH-IO-001`, `SH-TEST-001`
@@ -152,5 +152,10 @@ isolated wheel install, installed CLI/import probes, and all three rebuilt-image
 Docker boundary tests passed. A deterministic repair scenario also produced an
 equal parsed 11-artifact tree on `main@fbe3adf` and the extracted implementation
 after normalizing timestamps, durations, absolute temporary paths, and their
-derived digests. Commit, current-head CI, PR, and merge identifiers remain
-delivery evidence and are not claimed here yet.
+derived digests.
+
+Delivery completed through PR #15. Implementation commit
+`d0d0c863818f267bc4bb193adcd880cccc8c76bc` passed all five jobs in CI run
+`29917555768` and squash-merged as
+`59f178e8673028305cf1ac5d02dab1fc4920ac3b`. Local `main` was fetched and
+fast-forwarded to that exact merge revision before this closure record.
