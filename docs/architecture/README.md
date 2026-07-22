@@ -28,6 +28,9 @@ boundary is not evidence of process, host, or identity isolation.
 
 - [CLI interface boundary](components/cli.md) records the compatibility entry
   point, parser, dispatcher, handlers, rendering, and forbidden authority.
+- [Knowledge decision-support boundary](components/knowledge.md) records the
+  candidate-only graph domain, SQLite projection, revision fence, and forbidden
+  task authority.
 - [Trust and artifact boundaries](trust-and-artifacts.md) records who may create,
   read, and publish each authoritative artifact and which digest bindings are
   implemented or missing.

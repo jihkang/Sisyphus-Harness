@@ -66,11 +66,20 @@ and evaluates the contract without consulting the Agent success Boolean.
 `ControlTaskOutcomeService` reloads the current fenced attempt and is the only
 application service that can publish the resulting semantic decision.
 
-`contracts/knowledge.py`, `knowledge_graph.py`, and `infra/knowledge_index.py`
+`contracts/knowledge.py`, `knowledge_graph.py`, `knowledge_mutations.py`,
+`knowledge_read_context.py`, `knowledge_search.py`,
+`knowledge_dependencies.py`, `knowledge_planning.py`, and
+`infra/knowledge_database.py`, `infra/knowledge_index.py`,
+`infra/knowledge_projection.py`, `infra/knowledge_queries.py`, and
+`infra/knowledge_integrity.py`
 
 Provide a rebuildable candidate-only knowledge graph. Search, dependency
-inspection, and next-step projections are deterministic and revision-bound, but
-have no Claim, Gap, Task admission, dispatch, or completion authority.
+inspection, and next-step projections are deterministic and revision-bound.
+The public graph facade delegates mutation, shared cached traversal, search,
+dependency, and planning. The public SQLite facade inherits schema/transaction
+lifecycle and delegates projection writes, reads, and whole-index integrity.
+These components have no Claim, Gap, Task admission, dispatch, or completion
+authority.
 
 `benchmarks.py`, `evolution.py`, and `policy.py`
 

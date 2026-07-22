@@ -325,6 +325,72 @@ class ArchitectureDependencyTests(unittest.TestCase):
                     self.assertNotIn("render_json(", component_source)
                     self.assertNotIn("print(", component_source)
 
+    def test_knowledge_facades_keep_query_and_persistence_responsibilities_extracted(
+        self,
+    ) -> None:
+        graph_path = PACKAGE_ROOT / "knowledge_graph.py"
+        graph_source = graph_path.read_text(encoding="utf-8")
+        graph_tree = ast.parse(graph_source, filename=str(graph_path))
+        self.assertLessEqual(len(graph_source.splitlines()), 100)
+        graph_class = next(
+            node
+            for node in graph_tree.body
+            if isinstance(node, ast.ClassDef) and node.name == "KnowledgeGraph"
+        )
+        for method in (
+            node
+            for node in graph_class.body
+            if isinstance(node, ast.FunctionDef) and not node.name.startswith("__")
+        ):
+            with self.subTest(graph_method=method.name):
+                self.assertFalse(
+                    any(
+                        isinstance(node, (ast.For, ast.While))
+                        for node in ast.walk(method)
+                    )
+                )
+        graph_imports = {
+            node.module
+            for node in graph_tree.body
+            if isinstance(node, ast.ImportFrom) and node.level == 1
+        }
+        self.assertTrue(
+            {
+                "knowledge_dependencies",
+                "knowledge_mutations",
+                "knowledge_planning",
+                "knowledge_search",
+                "ports.knowledge",
+            }.issubset(graph_imports)
+        )
+
+        index_path = PACKAGE_ROOT / "infra" / "knowledge_index.py"
+        index_source = index_path.read_text(encoding="utf-8")
+        index_tree = ast.parse(index_source, filename=str(index_path))
+        self.assertLessEqual(len(index_source.splitlines()), 80)
+        self.assertNotIn("SELECT ", index_source)
+        self.assertNotIn("INSERT INTO", index_source)
+        index_class = next(
+            node
+            for node in index_tree.body
+            if isinstance(node, ast.ClassDef)
+            and node.name == "SQLiteKnowledgeIndex"
+        )
+        self.assertEqual(
+            [base.id for base in index_class.bases if isinstance(base, ast.Name)],
+            ["SQLiteKnowledgeDatabase"],
+        )
+
+        component_paths = sorted(PACKAGE_ROOT.glob("knowledge_*.py")) + sorted(
+            (PACKAGE_ROOT / "infra").glob("knowledge_*.py")
+        )
+        for path in component_paths:
+            with self.subTest(component=path.relative_to(PACKAGE_ROOT)):
+                source = path.read_text(encoding="utf-8")
+                self.assertLessEqual(len(source.splitlines()), 280)
+                if path.parent == PACKAGE_ROOT:
+                    self.assertNotIn("import sqlite3", source)
+
 
 def _imports(path: Path) -> list[ast.Import | ast.ImportFrom]:
     tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))

@@ -10,14 +10,36 @@ PACKAGE_ROOT = Path(__file__).resolve().parents[1] / "src" / "sisyphus_harness"
 
 class EvidenceGraphArchitectureTests(unittest.TestCase):
     def test_pure_decision_domains_depend_only_on_contracts(self) -> None:
-        for filename in ("evidence_contract.py", "knowledge_graph.py"):
-            path = PACKAGE_ROOT / filename
-            self.assertTrue(path.is_file(), f"missing pure domain: {filename}")
+        evidence_path = PACKAGE_ROOT / "evidence_contract.py"
+        evidence_imports = _internal_imports(evidence_path)
+        self.assertTrue(
+            all(
+                name == "contracts" or name.startswith("contracts.")
+                for name in evidence_imports
+            ),
+            "evidence_contract.py imports non-contract runtime modules: "
+            f"{sorted(evidence_imports)}",
+        )
+
+        knowledge_paths = sorted(PACKAGE_ROOT.glob("knowledge_*.py"))
+        self.assertTrue(knowledge_paths)
+        for path in knowledge_paths:
             internal = _internal_imports(path)
-            with self.subTest(filename=filename):
-                self.assertTrue(
-                    all(name == "contracts" or name.startswith("contracts.") for name in internal),
-                    f"{filename} imports non-contract runtime modules: {sorted(internal)}",
+            forbidden = {
+                name
+                for name in internal
+                if not (
+                    name == "contracts"
+                    or name.startswith("contracts.")
+                    or name == "ports"
+                    or name.startswith("ports.")
+                    or name.startswith("knowledge_")
+                )
+            }
+            with self.subTest(filename=path.name):
+                self.assertFalse(
+                    forbidden,
+                    f"{path.name} imports runtime authority: {sorted(forbidden)}",
                 )
 
     def test_implementation_and_verifier_layers_do_not_own_adjudication(self) -> None:
@@ -43,21 +65,28 @@ class EvidenceGraphArchitectureTests(unittest.TestCase):
                 )
 
     def test_knowledge_index_has_no_execution_authority_dependency(self) -> None:
-        path = PACKAGE_ROOT / "infra" / "knowledge_index.py"
-        self.assertTrue(path.is_file(), "knowledge index adapter is missing")
+        paths = sorted((PACKAGE_ROOT / "infra").glob("knowledge_*.py"))
+        self.assertTrue(paths, "knowledge index adapters are missing")
         forbidden = {
             "agent",
+            "evolution",
+            "policy",
+            "provider",
             "queue",
+            "runtime",
             "verifier",
             "worker",
+            "services.control_outcomes",
             "services.verifier",
         }
-        imported = _internal_imports(path)
-        self.assertFalse(
-            imported.intersection(forbidden),
-            f"knowledge index imports execution authority: "
-            f"{sorted(imported.intersection(forbidden))}",
-        )
+        for path in paths:
+            imported = _internal_imports(path)
+            with self.subTest(filename=path.name):
+                self.assertFalse(
+                    imported.intersection(forbidden),
+                    f"{path.name} imports execution authority: "
+                    f"{sorted(imported.intersection(forbidden))}",
+                )
 
 
 def _internal_imports(path: Path) -> set[str]:

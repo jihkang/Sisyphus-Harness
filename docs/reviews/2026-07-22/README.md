@@ -13,3 +13,6 @@ or merge evidence.
   loop, state, context, transition, and artifact responsibility review.
 - [CLI responsibility decomposition](cli-decomposition.md): compatibility
   facade, parser, dispatcher, handler, IO, rendering, and parity review.
+- [Knowledge responsibility decomposition](knowledge-decomposition.md): graph
+  facade, shared read context, query services, SQLite lifecycle, projection,
+  query, and integrity review.
